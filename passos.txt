@@ -1,0 +1,9 @@
+Passos:
+ 1 - Estruturas(Structs) - sucesso
+ 2 - LerInstacias - sucesso
+ 3 - Metodo Solução Inicial - Essa solução inicial deve atribuir cada tarefa a 
+     uma estação de trabalho. 
+ 4 - metodo calcularmakespan - deve percorrer as tarefas atribuídas a cada estação de trabalho e somar os tempos de processamento.
+ 5 - algoritmo de busca local -  melhorar a solução inicial e encontrar uma solução ótima ou próxima da ótima. 
+ 6 - metodo EscreverSolucao - método deve mostrar as tarefas atribuídas a cada estação de trabalho
+     e o makespan da solução.
