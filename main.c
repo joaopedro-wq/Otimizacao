@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
 
 #define MAX_TAREFAS 10000
-#define MAX_ESTACOES 10000
+#define MAX_ESTACOES 10
 
 typedef struct {
     int id;             // Identificador da tarefa
@@ -54,78 +55,145 @@ ProblemaBalanceamento lerInstancia(const char* nomeArquivo) {
     
 }
 
-void criarSolucaoInicial(ProblemaBalanceamento problema, int solucao[]) {
-    int numTarefas = problema.numTarefas;
-    int numEstacoes = problema.numEstacoes;
 
-    // Inicializar vetor de solução
+void criarSolucaoInicial(ProblemaBalanceamento problema, int sequenciaTarefas[]) {
+    int numTarefas = problema.numTarefas;
+
+    // Criar um vetor temporário com os índices das tarefas
+    int indicesTarefas[MAX_TAREFAS];
     for (int i = 0; i < numTarefas; i++) {
-        solucao[i] = i % numEstacoes;  // Atribuir tarefa à estação de trabalho
+        indicesTarefas[i] = i;
+    }
+
+    // Embaralhar os índices das tarefas usando o algoritmo Fisher-Yates
+    for (int i = numTarefas - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+        int temp = indicesTarefas[i];
+        indicesTarefas[i] = indicesTarefas[j];
+        indicesTarefas[j] = temp;
+    }
+
+    // Copiar a sequência de tarefas embaralhada para o vetor de sequência de tarefas
+    for (int i = 0; i < numTarefas; i++) {
+        sequenciaTarefas[i] = indicesTarefas[i];
     }
 }
 
 
-int calcularMakespan(ProblemaBalanceamento problema, int solucao[]) {
-    int numEstacoes = problema.numEstacoes;
-    int temposEstacoes[numEstacoes];
+int calcularMakespanSequencia(ProblemaBalanceamento problema, int sequenciaTarefas[]) {
+    int makespan = 0;
+    int tempoEstacao[problema.numEstacoes];  // Armazena o tempo total de processamento em cada estação
 
-    // Inicializar os tempos de processamento das estações de trabalho como zero
-    for (int i = 0; i < numEstacoes; i++) {
-        temposEstacoes[i] = 0;
+    // Inicializa o tempo das estações como zero
+    for (int i = 0; i < problema.numEstacoes; i++) {
+        tempoEstacao[i] = 0;
     }
 
-    int makespan = 0;
-
+    // Processa cada tarefa na sequência e atualiza os tempos das estações
     for (int i = 0; i < problema.numTarefas; i++) {
-        int estacao = solucao[i] - 1;  // Ajustar índice da estação de trabalho (inicia em 0)
+        int idTarefa = sequenciaTarefas[i];
+        int idEstacao = i % problema.numEstacoes;
+        int tempoTarefa = problema.tarefas[idTarefa].tempoProcessamento;
 
-        // Atualizar o tempo da estação de trabalho com o tempo de processamento da             tarefa           atual
-        temposEstacoes[estacao] += problema.tarefas[i].tempoProcessamento;
+        // Atualiza o tempo da estação
+        tempoEstacao[idEstacao] += tempoTarefa;
 
-        // Verificar se o tempo da estação atual é maior que o makespan atual
-        if (temposEstacoes[estacao] > makespan) {
-            makespan = temposEstacoes[estacao];
+        // Atualiza o makespan se o tempo da estação for maior que o makespan atual
+        if (tempoEstacao[idEstacao] > makespan) {
+            makespan = tempoEstacao[idEstacao];
         }
     }
 
     return makespan;
 }
 
+void buscaLocal(ProblemaBalanceamento problema, int sequenciaTarefas[]) {
+    int melhorMakespan = calcularMakespanSequencia(problema, sequenciaTarefas);
+
+    // Variável para verificar se houve alguma melhoria na iteração atual
+    int melhorou = 1;
+
+    while (melhorou) {
+        melhorou = 0;
+
+        for (int i = 0; i < problema.numTarefas; i++) {
+            for (int j = i + 1; j < problema.numTarefas; j++) {
+                // Realiza a troca de duas tarefas na sequência
+                int temp = sequenciaTarefas[i];
+                sequenciaTarefas[i] = sequenciaTarefas[j];
+                sequenciaTarefas[j] = temp;
+
+                // Calcula o makespan da nova sequência
+                int novoMakespan = calcularMakespanSequencia(problema, sequenciaTarefas);
+
+                // Verifica se houve melhoria
+                if (novoMakespan < melhorMakespan) {
+                    melhorMakespan = novoMakespan;
+                    melhorou = 1;
+                } else {
+                    // Desfaz a troca se não houve melhoria
+                    temp = sequenciaTarefas[i];
+                    sequenciaTarefas[i] = sequenciaTarefas[j];
+                    sequenciaTarefas[j] = temp;
+                }
+            }
+        }
+    }
+}
+void imprimirSequenciaTarefas(ProblemaBalanceamento problema, int sequenciaTarefas[]) {
+    for (int i = 0; i < problema.numTarefas; i++) {
+        printf("%d ", sequenciaTarefas[i]);
+    }
+    printf("\n");
+}
+
 
 int main() {
-    ProblemaBalanceamento problema;
-    int *solucao;
-
-    // Ler instância do problema
-    problema = lerInstancia("KILBRID.IN2");
-
-    // Alocar memória para o vetor de solução
-    solucao = (int *)malloc(problema.numTarefas * sizeof(int));
-
-    // Verificar se a alocação de memória foi bem sucedida
-    if (solucao == NULL) {
-        printf("Erro ao alocar memória para o vetor de solução.\n");
-        return 1;
+    ProblemaBalanceamento problema = lerInstancia("instancia1.txt");
+    if (problema.numEstacoes == 0 || problema.numTarefas == 0) {
+        printf("Erro ao ler a instância.\n");
+        return 0;
     }
 
-    // Criar solução inicial
-    criarSolucaoInicial(problema, solucao);
+    int solucaoInicial[problema.numTarefas];
+    criarSolucaoInicial(problema, solucaoInicial);
+    int makespanInicial = calcularMakespanSequencia(problema, solucaoInicial);
 
-    // Imprimir a solução inicial
     printf("Solução Inicial:\n");
-    for (int i = 0; i < problema.numTarefas; i++) {
-        printf("Tarefa %d -> Estação %d\n", i+1, solucao[i]);
+    imprimirSequenciaTarefas(problema, solucaoInicial);
+    printf("Makespan Inicial: %d\n", makespanInicial);
+
+    // Busca local
+    int melhorMakespan = makespanInicial;
+    int melhorSolucao[problema.numTarefas];
+    memcpy(melhorSolucao, solucaoInicial, sizeof(solucaoInicial));
+
+    int iteracoes = 100; // Número de iterações da busca local
+    for (int i = 0; i < iteracoes; i++) {
+        int vizinho[problema.numTarefas];
+        memcpy(vizinho, melhorSolucao, sizeof(melhorSolucao));
+
+        // Gere um vizinho trocando duas tarefas adjacentes
+        int posicao = rand() % (problema.numTarefas - 1);
+        int temp = vizinho[posicao];
+        vizinho[posicao] = vizinho[posicao + 1];
+        vizinho[posicao + 1] = temp;
+
+        int makespanVizinho = calcularMakespanSequencia(problema, vizinho);
+        if (makespanVizinho < melhorMakespan) {
+            melhorMakespan = makespanVizinho;
+            memcpy(melhorSolucao, vizinho, sizeof(vizinho));
+        }
     }
-  
-   int makespan = calcularMakespan(problema, solucao);
-    printf("Makespan da solução inicial: %d\n", makespan);
 
-  
+    printf("Melhor Solução:\n");
+    imprimirSequenciaTarefas(problema, melhorSolucao);
+    printf("Melhor Makespan: %d\n", melhorMakespan);
 
-    // Liberar memória alocada
+    // Liberar memória alocada para problema.tarefas e problema.estacoes
     free(problema.tarefas);
     free(problema.estacoes);
-    free(solucao);
 
     return 0;
 }
+
