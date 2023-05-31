@@ -1,131 +1,118 @@
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 
-#define MAX_TAREFAS 10000
-#define MAX_ESTACOES 10000
-
-typedef struct {
-    int id;             // Identificador da tarefa
-    int tempoProcessamento;  // Tempo necessário para processar a tarefa
-    
-} Tarefa;
+#define MAX_TAREFAS 100
+#define MAX_MAQUINAS 11
 
 typedef struct {
-    int id;             // Identificador da estação de trabalho
-    
-} EstacaoTrabalho;
+  int num_tarefas;
+  int tempos[MAX_TAREFAS];
+  int precedencias[MAX_TAREFAS][2];
+} Instancia;
 
 typedef struct {
-    int numEstacoes;                // Número de estações de trabalho
-    int numTarefas;                 // Número de tarefas
-    Tarefa tarefas[MAX_TAREFAS];    // Vetor de tarefas
-    EstacaoTrabalho estacoes[MAX_ESTACOES];  // Vetor de estações de trabalho
-    
-} ProblemaBalanceamento;
-
-typedef struct {
-    int atribuicaoTarefas[MAX_TAREFAS];  // Vetor de atribuição de tarefas para as estações de trabalho
+  int num_estacoes;
+  int maquinas[MAX_TAREFAS];
 } Solucao;
 
-ProblemaBalanceamento lerInstancia(const char* nomeArquivo) {
-  ProblemaBalanceamento problema;
-    FILE* arquivo = fopen(nomeArquivo, "r");
-    if (arquivo == NULL) {
-        printf("Erro ao abrir o arquivo.\n");
-        exit(1);
-    }
+Instancia lerInstancia(const char *nome_arquivo) {
+  FILE *arquivo = fopen(nome_arquivo, "r");
+  Instancia instancia;
 
-    // Leitura do número de estações de trabalho e número de tarefas
-    fscanf(arquivo, "%d %d", &problema.numEstacoes, &problema.numTarefas);
+  if (arquivo == NULL) {
+    printf("Erro ao abrir o arquivo %s\n", nome_arquivo);
+    exit(1);
+  }
 
-    // Leitura das informações das tarefas
-    for (int i = 0; i < problema.numTarefas; i++) {
-        fscanf(arquivo, "%d %d", &problema.tarefas[i].id, &problema.tarefas[i].tempoProcessamento);
-    }
+  fscanf(arquivo, "%d", &instancia.num_tarefas);
 
-    // Leitura das informações das estações de trabalho
-    for (int i = 0; i < problema.numEstacoes; i++) {
-        fscanf(arquivo, "%d", &problema.estacoes[i].id);
-    }
+  for (int i = 0; i < instancia.num_tarefas; i++) {
+    fscanf(arquivo, "%d", &instancia.tempos[i]);
+  }
 
-    fclose(arquivo);
-    return problema;
-    
+  int i = 0;
+  while (fscanf(arquivo, "%d,%d", &instancia.precedencias[i][0],
+                &instancia.precedencias[i][1]) != EOF) {
+    i++;
+  }
+
+  fclose(arquivo);
+  return instancia;
 }
 
-void criarSolucaoInicial(ProblemaBalanceamento problema, int solucao[]) {
-    int numTarefas = problema.numTarefas;
-    int numEstacoes = problema.numEstacoes;
+Solucao criarSolucaoInicial(const Instancia *instancia, int num_estacoes) {
+  Solucao solucao;
+  solucao.num_estacoes = num_estacoes;
 
-    // Inicializar vetor de solução
-    for (int i = 0; i < numTarefas; i++) {
-        solucao[i] = i % numEstacoes;  // Atribuir tarefa à estação de trabalho
-    }
+  for (int i = 0; i < instancia->num_tarefas; i++) {
+    solucao.maquinas[i] = rand() % num_estacoes;
+  }
+
+  return solucao;
 }
 
-
-int calcularMakespan(ProblemaBalanceamento problema, int solucao[]) {
-    int numEstacoes = problema.numEstacoes;
-    int temposEstacoes[numEstacoes];
-
-    // Inicializar os tempos de processamento das estações de trabalho como zero
-    for (int i = 0; i < numEstacoes; i++) {
-        temposEstacoes[i] = 0;
+void escreverSolucao(const Solucao *solucao, const Instancia *instancia) {
+  for (int e = 0; e < solucao->num_estacoes; e++) {
+    printf("Máquina %d:", e + 1);
+    for (int t = 0; t < instancia->num_tarefas; t++) {
+      if (solucao->maquinas[t] == e) {
+        printf(" %d", t + 1);
+      }
     }
-
-    int makespan = 0;
-
-    for (int i = 0; i < problema.numTarefas; i++) {
-        int estacao = solucao[i] - 1;  // Ajustar índice da estação de trabalho (inicia em 0)
-
-        // Atualizar o tempo da estação de trabalho com o tempo de processamento da             tarefa           atual
-        temposEstacoes[estacao] += problema.tarefas[i].tempoProcessamento;
-
-        // Verificar se o tempo da estação atual é maior que o makespan atual
-        if (temposEstacoes[estacao] > makespan) {
-            makespan = temposEstacoes[estacao];
-        }
-    }
-
-    return makespan;
+    printf("\n");
+  }
 }
 
+int calcularMakespan(const Instancia *instancia, const Solucao *solucao) {
+  int makespan = 0;
+  int finalizacao[MAX_MAQUINAS] = {0};
+
+  for (int t = 0; t < instancia->num_tarefas; t++) {
+    int maquina = solucao->maquinas[t];
+    int inicio = finalizacao[maquina];
+    int fim = inicio + instancia->tempos[t];
+
+    for (int i = 0; i < instancia->num_tarefas; i++) {
+      if (instancia->precedencias[i][1] == t + 1 &&
+          solucao->maquinas[i] == maquina) {
+        inicio =
+            (inicio > finalizacao[maquina]) ? inicio : finalizacao[maquina];
+      }
+    }
+
+    finalizacao[maquina] = fim;
+    makespan = (fim > makespan) ? fim : makespan;
+  }
+
+  return makespan;
+}
 
 int main() {
-    ProblemaBalanceamento problema;
-    int *solucao;
+  srand(time(NULL));
 
-    // Ler instância do problema
-    problema = lerInstancia("KILBRID.IN2");
+  Instancia instancia = lerInstancia("KILBRID.IN2");
+  int num_estacoes;
 
-    // Alocar memória para o vetor de solução
-    solucao = (int *)malloc(problema.numTarefas * sizeof(int));
+  printf("Digite o número de estações (entre 3 e 11): ");
+  scanf("%d", &num_estacoes);
 
-    // Verificar se a alocação de memória foi bem sucedida
-    if (solucao == NULL) {
-        printf("Erro ao alocar memória para o vetor de solução.\n");
-        return 1;
+  Solucao melhor_solucao;
+  int melhor_makespan = INT_MAX;
+
+  for (int iteracao = 0; iteracao < 1000; iteracao++) {
+    Solucao solucao = criarSolucaoInicial(&instancia, num_estacoes);
+    int makespan = calcularMakespan(&instancia, &solucao);
+
+    if (makespan < melhor_makespan) {
+      melhor_makespan = makespan;
+      melhor_solucao = solucao;
     }
+  }
 
-    // Criar solução inicial
-    criarSolucaoInicial(problema, solucao);
+  printf("Melhor Solução Encontrada:\n");
+  escreverSolucao(&melhor_solucao, &instancia);
+  printf("Makespan: %d\n", melhor_makespan);
 
-    // Imprimir a solução inicial
-    printf("Solução Inicial:\n");
-    for (int i = 0; i < problema.numTarefas; i++) {
-        printf("Tarefa %d -> Estação %d\n", i+1, solucao[i]);
-    }
-  
-   int makespan = calcularMakespan(problema, solucao);
-    printf("Makespan da solução inicial: %d\n", makespan);
-
-  
-
-    // Liberar memória alocada
-    free(problema.tarefas);
-    free(problema.estacoes);
-    free(solucao);
-
-    return 0;
+  return 0;
 }
