@@ -1,142 +1,138 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MAX_TASKS 100
-#define MAX_MACHINES 100
-#define MAX_COST 1000000
+#define MAX_TAREFAS 100
+#define MAX_ESTACOES 100
+#define MAX_CUSTO 1000000
 
 typedef struct {
-    int num_tasks;
-    int num_machines;
-    int task_cost[MAX_TASKS];
-    int precedences[MAX_TASKS][MAX_TASKS];
-} Instance;
+    int num_tarefas;
+    int num_estacoes;
+    int custo_tarefas[MAX_TAREFAS];
+    int precedencias[MAX_TAREFAS][MAX_TAREFAS];
+} Instancia;
 
 typedef struct {
-    int machine[MAX_TASKS];
+    int estacao[MAX_TAREFAS];
     int makespan;
-} Solution;
+} Solucao;
 
-void read_instance(const char *filename, Instance *instance) {
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
+// Função para ler a instância de um arquivo
+void ler_instancia(const char *nome_arquivo, Instancia *instancia) {
+    FILE *arquivo = fopen(nome_arquivo, "r");
+    if (arquivo == NULL) {
         printf("Erro ao abrir o arquivo.\n");
         exit(1);
     }
 
-    fscanf(file, "%d", &instance->num_tasks);
+    fscanf(arquivo, "%d", &instancia->num_tarefas);
 
-    for (int i = 0; i < instance->num_tasks; i++) {
-        fscanf(file, "%d", &instance->task_cost[i]);
+    for (int i = 0; i < instancia->num_tarefas; i++) {
+        fscanf(arquivo, "%d", &instancia->custo_tarefas[i]);
     }
 
-    for (int i = 0; i < instance->num_tasks; i++) {
-        for (int j = 0; j < instance->num_tasks; j++) {
-            fscanf(file, "%d", &instance->precedences[i][j]);
+    for (int i = 0; i < instancia->num_tarefas; i++) {
+        for (int j = 0; j < instancia->num_tarefas; j++) {
+            fscanf(arquivo, "%d", &instancia->precedencias[i][j]);
         }
     }
 
-    fclose(file);
+    fclose(arquivo);
 }
 
-void print_solution(const Instance *instance, const Solution *solution) {
+// Função para imprimir a solução
+void imprimir_solucao(const Instancia *instancia, const Solucao *solucao) {
     printf("Solução Inicial:\n");
-    for (int t = 0; t < instance->num_tasks; t++) {
-        printf("Tarefa %d: Estação %d\n", t + 1, solution->machine[t] + 1);
+    for (int t = 0; t < instancia->num_tarefas; t++) {
+        printf("Tarefa %d: Estação %d\n", t + 1, solucao->estacao[t] + 1);
     }
-    printf("Makespan: %d\n", solution->makespan);
+    printf("Makespan: %d\n", solucao->makespan);
     printf("\n");
 
     printf("Solução Final:\n");
-    for (int t = 0; t < instance->num_tasks; t++) {
-        printf("Tarefa %d: Estação %d\n", t + 1, solution->machine[t] + 1);
+    for (int t = 0; t < instancia->num_tarefas; t++) {
+        printf("Tarefa %d: Estação %d\n", t + 1, solucao->estacao[t] + 1);
     }
-    printf("Makespan Final: %d\n", solution->makespan);
+    printf("Makespan Final: %d\n", solucao->makespan);
 }
 
-void calculate_makespan(const Instance *instance, const Solution *solution, int *makespan) {
-    int machine_times[MAX_MACHINES] = {0};
+// Função para calcular o makespan de uma solução
+void calcular_makespan(const Instancia *instancia, const Solucao *solucao, int *makespan) {
+    int tempos_estacoes[MAX_ESTACOES] = {0};
 
-    for (int t = 0; t < instance->num_tasks; t++) {
-        int task_machine = solution->machine[t];
-        int task_cost = instance->task_cost[t];
-        int machine_time = machine_times[task_machine];
+    for (int t = 0; t < instancia->num_tarefas; t++) {
+        int estacao_tarefa = solucao->estacao[t];
+        int custo_tarefa = instancia->custo_tarefas[t];
+        int tempo_estacao = tempos_estacoes[estacao_tarefa];
 
-        if (machine_time > *makespan) {
-            *makespan = machine_time;
+        if (tempo_estacao > *makespan) {
+            *makespan = tempo_estacao;
         }
 
-        machine_times[task_machine] += task_cost;
+        tempos_estacoes[estacao_tarefa] += custo_tarefa;
     }
 }
 
-void solve_instance(const Instance *instance, Solution *solution) {
-    solution->makespan = 0;
+// Função para resolver a instância
+void resolver_instancia(const Instancia *instancia, Solucao *solucao) {
+    solucao->makespan = 0;
 
-    // Lógica para atribuir as tarefas às máquinas
-    int num_machines = instance->num_machines;
-    int tasks_per_machine = instance->num_tasks / num_machines;
-    int remaining_tasks = instance->num_tasks % num_machines;
-    int task_counter = 0;
-
-    for (int m = 0; m < num_machines; m++) {
-        for (int i = 0; i < tasks_per_machine; i++) {
-            solution->machine[task_counter] = m;
-            task_counter++;
-        }
-
-        if (remaining_tasks > 0) {
-            solution->machine[task_counter] = m;
-            task_counter++;
-            remaining_tasks--;
-        }
+    // Lógica para atribuir as tarefas às estações (solução inicial)
+    for (int t = 0; t < instancia->num_tarefas; t++) {
+        solucao->estacao[t] = t % instancia->num_estacoes;
     }
 
-    calculate_makespan(instance, solution, &solution->makespan);
+    calcular_makespan(instancia, solucao, &solucao->makespan);
+
+    // Implementar lógica de melhoria da solução aqui
+
+    calcular_makespan(instancia, solucao, &solucao->makespan);
 }
 
-void write_solution(const char *filename, const Instance *instance, const Solution *solution) {
-    FILE *file = fopen(filename, "w");
-    if (file == NULL) {
+// Função para escrever a solução em um arquivo
+void escrever_solucao(const char *nome_arquivo, const Instancia *instancia, const Solucao *solucao) {
+    FILE *arquivo = fopen(nome_arquivo, "w");
+    if (arquivo == NULL) {
         printf("Erro ao criar o arquivo de saída.\n");
         return;
     }
 
-    fprintf(file, "Solução Inicial:\n");
-    for (int t = 0; t < instance->num_tasks; t++) {
-        fprintf(file, "Tarefa %d: Estação %d\n", t + 1, solution->machine[t] + 1);
+    fprintf(arquivo, "Solução Inicial:\n");
+    for (int t = 0; t < instancia->num_tarefas; t++) {
+        fprintf(arquivo, "Tarefa %d: Estação %d\n", t + 1, solucao->estacao[t] + 1);
     }
-    fprintf(file, "Makespan: %d\n", solution->makespan);
-    fprintf(file, "\n");
+    fprintf(arquivo, "Makespan: %d\n", solucao->makespan);
+    fprintf(arquivo, "\n");
 
-    fprintf(file, "Solução Final:\n");
-    for (int t = 0; t < instance->num_tasks; t++) {
-        fprintf(file, "Tarefa %d: Estação %d\n", t + 1, solution->machine[t] + 1);
+    fprintf(arquivo, "Solução Final:\n");
+    for (int t = 0; t < instancia->num_tarefas; t++) {
+        fprintf(arquivo, "Tarefa %d: Estação %d\n", t + 1, solucao->estacao[t] + 1);
     }
-    fprintf(file, "Makespan Final: %d\n", solution->makespan);
+    fprintf(arquivo, "Makespan Final: %d\n", solucao->makespan);
 
-    fclose(file);
+    fclose(arquivo);
 }
 
 int main() {
-    Instance instance;
-    Solution solution;
+    Instancia instancia;
+    Solucao solucao;
 
-    const char *filename = "KILBRID.IN2";
-    read_instance(filename, &instance);
+    const char *nome_arquivo = "KILBRID.IN2";
+    ler_instancia(nome_arquivo, &instancia);
 
-    printf("Informe o número de máquinas (entre 3 e 11): ");
-    scanf("%d", &instance.num_machines);
+    printf("Informe o número de MAQUINAS (entre 3 e 11): ");
+    scanf("%d", &instancia.num_estacoes);
 
-    if (instance.num_machines < 3 || instance.num_machines > 11) {
-        printf("Número de máquinas inválido. O valor deve estar entre 3 e 11.\n");
+    if (instancia.num_estacoes < 3 || instancia.num_estacoes > 11) {
+        printf("Número de estações inválido. O valor deve estar entre 3 e 11.\n", instancia.num_tarefas);
         return 1;
     }
 
-    solve_instance(&instance, &solution);
+    resolver_instancia(&instancia, &solucao);
 
-    print_solution(&instance, &solution);
-    write_solution("solucao.txt", &instance, &solution);
+    imprimir_solucao(&instancia, &solucao);
+    escrever_solucao("solucao.txt", &instancia, &solucao);
 
     return 0;
 }
+
