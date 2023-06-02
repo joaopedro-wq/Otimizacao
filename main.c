@@ -30,10 +30,12 @@ void atribuir_tarefas(const Instancia *instancia, Solucao *solucao) {
     int estacao_atual = 0;
     int tarefas_ordenadas[MAX_TAREFAS];
 
+    // Armazena todos os índices das tarefas
     for (int t = 0; t < instancia->num_tarefas; t++) {
         tarefas_ordenadas[t] = t;
     }
 
+    //Bubble Sort - ordenar decrescente 
     for (int i = 0; i < instancia->num_tarefas - 1; i++) {
         for (int j = i + 1; j < instancia->num_tarefas; j++) {
             if (instancia->custo_tarefas[tarefas_ordenadas[i]] < instancia->custo_tarefas[tarefas_ordenadas[j]]) {
@@ -44,17 +46,22 @@ void atribuir_tarefas(const Instancia *instancia, Solucao *solucao) {
         }
     }
 
+    /// Itera sobre as tarefas ordenadas
     for (int i = 0; i < instancia->num_tarefas; i++) {
         int tarefa = tarefas_ordenadas[i];
         int estacao_valida = 1;
 
+     // Verifica as precedências da tarefa com as tarefas anteriores
         for (int j = 0; j < instancia->num_tarefas; j++) {
+
+            // Verifica se a tarefa possui precedência com a tarefa atual e se a estação é diferente da estação atual
             if (instancia->precedencias[tarefa][j] && solucao->estacao[j] != estacao_atual) {
                 estacao_valida = 0;
                 break;
             }
         }
 
+        /// Atribui a tarefa à estação válida
         if (estacao_valida) {
             solucao->estacao[tarefa] = estacao_atual;
             estacao_atual = (estacao_atual + 1) % instancia->num_estacoes;
@@ -66,15 +73,19 @@ int calcular_makespan(const Instancia *instancia, const Solucao *solucao) {
     int tempos_estacoes[MAX_ESTACOES] = {0};
     int makespan = 0;
 
+    
     for (int t = 0; t < instancia->num_tarefas; t++) {
         int estacao_tarefa = solucao->estacao[t];
         int custo_tarefa = instancia->custo_tarefas[t];
         int tempo_estacao = tempos_estacoes[estacao_tarefa];
 
+        // Verifica se o tempo atual da estação mais o tempo de execução da tarefa
+        // é maior que o makespan atual
         if (tempo_estacao + custo_tarefa > makespan) {
             makespan = tempo_estacao + custo_tarefa;
         }
-
+        
+        // Atualiza o tempo da estação após a execução da tarefa
         tempos_estacoes[estacao_tarefa] += custo_tarefa;
     }
 
@@ -108,6 +119,7 @@ void busca_local(const Instancia *instancia, Solucao *solucao) {
                 vizinho.estacao[t2] = temp;
                 int makespan_vizinho = calcular_makespan(instancia, &vizinho);
 
+                // Verifica se a solução vizinha possui um makespan menor que a melhor solução atual
                 if (makespan_vizinho < melhor_makespan) {
                     melhor_makespan = makespan_vizinho;
                     melhor_solucao = vizinho;
@@ -123,7 +135,7 @@ void busca_local(const Instancia *instancia, Solucao *solucao) {
 
         num_iteracoes++;
     }
-
+    // Atualiza a solução com a melhor solução encontrada durante a busca local
     *solucao = melhor_solucao;
 
     printf("Número de iterações: %d\n", num_iteracoes);
@@ -192,12 +204,12 @@ int main() {
 
     clock_t inicio = clock();
 
-    // Imprimir as máquinas e suas funcionalidades
+ 
     
     for (int num_maquinas = 3; num_maquinas <= 11; num_maquinas++) {
         printf("estacao: %d\n", num_maquinas);
 
-        // Definir o número de máquinas
+        // Definir o número de estacoes
         instancia.num_estacoes = num_maquinas;
 
         // Resolver a instância
@@ -208,7 +220,7 @@ int main() {
 
         // Imprimir a solução
 
-imprimir_solucao(&instancia, &solucao);
+        imprimir_solucao(&instancia, &solucao);
 
 
         // Escrever a solução em arquivo
