@@ -126,13 +126,12 @@ void busca_local(const Instancia *instancia, Solucao *solucao) {
 
     *solucao = melhor_solucao;
 
-    printf("Numero de Iterações: ", num_iteracoes);
+    printf("Número de iterações: %d\n", num_iteracoes);
 }
-
 void imprimir_solucao(const Instancia *instancia, const Solucao *solucao) {
-    printf("SOL Final:\n");
+    printf("Solução Final:\n");
     for (int m = 0; m < instancia->num_estacoes; m++) {
-        printf("Maquina %d: ", m + 1);
+        printf("Máquina %d: ", m + 1);
 
         for (int t = 0; t < instancia->num_tarefas; t++) {
             if (solucao->estacao[t] == m) {
@@ -194,9 +193,9 @@ int main() {
     clock_t inicio = clock();
 
     // Imprimir as máquinas e suas funcionalidades
-    printf("Estações disponiveis:\n");
+    
     for (int num_maquinas = 3; num_maquinas <= 11; num_maquinas++) {
-        printf(" Estacao: %d\n", num_maquinas);
+        printf("estacao: %d\n", num_maquinas);
 
         // Definir o número de máquinas
         instancia.num_estacoes = num_maquinas;
@@ -209,7 +208,7 @@ int main() {
 
         // Imprimir a solução
 
-        imprimir_solucao(&instancia, &solucao);
+imprimir_solucao(&instancia, &solucao);
 
 
         // Escrever a solução em arquivo
