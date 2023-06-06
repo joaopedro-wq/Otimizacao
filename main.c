@@ -18,7 +18,7 @@ void ler_instancia(const char *nome_arquivo, Instancia *instancia) {
 
     for (int i = 0; i < instancia->num_tarefas; i++) {
         for (int j = 0; j < instancia->num_tarefas; j++) {
-            fscanf(arquivo, "%d", &instancia->precedencias[i][j]);
+            fscanf(arquivo, "%d,%d", &instancia->precedencias[i][j], &instancia->precedencias[i][j]);
         }
     }
 
