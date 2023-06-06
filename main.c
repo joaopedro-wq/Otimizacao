@@ -1,23 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include "main.h"  
 
-#define MAX_TAREFAS 100
-#define MAX_ESTACOES 100
-#define MAX_CUSTO 1000000
-
-typedef struct {
-    int num_tarefas;
-    int num_estacoes;
-    int custo_tarefas[MAX_TAREFAS];
-    int precedencias[MAX_TAREFAS][MAX_TAREFAS];
-} Instancia;
-
-typedef struct {
-    int estacao[MAX_TAREFAS];
-    int makespan;
-} Solucao;
-
-// Função para ler a instância de um arquivo
 void ler_instancia(const char *nome_arquivo, Instancia *instancia) {
     FILE *arquivo = fopen(nome_arquivo, "r");
     if (arquivo == NULL) {
@@ -40,99 +25,175 @@ void ler_instancia(const char *nome_arquivo, Instancia *instancia) {
     fclose(arquivo);
 }
 
-// Função para imprimir a solução
-void imprimir_solucao(const Instancia *instancia, const Solucao *solucao) {
-    printf("Solução Inicial:\n");
-    for (int t = 0; t < instancia->num_tarefas; t++) {
-        printf("Tarefa %d: Estação %d\n", t + 1, solucao->estacao[t] + 1);
-    }
-    printf("Makespan: %d\n", solucao->makespan);
-    printf("\n");
+void atribuir_tarefas(const Instancia *instancia, Solucao *solucao) {
+    int estacao_atual = 0;
+    int tarefas_ordenadas[MAX_TAREFAS];
 
-    printf("Solução Final:\n");
+    // Armazena todos os índices das tarefas
     for (int t = 0; t < instancia->num_tarefas; t++) {
-        printf("Tarefa %d: Estação %d\n", t + 1, solucao->estacao[t] + 1);
+        tarefas_ordenadas[t] = t;
     }
-    printf("Makespan Final: %d\n", solucao->makespan);
+
+    // Bubble Sort - ordenar decrescente
+    for (int i = 0; i < instancia->num_tarefas - 1; i++) {
+        for (int j = i + 1; j < instancia->num_tarefas; j++) {
+            if (instancia->custo_tarefas[tarefas_ordenadas[i]] < instancia->custo_tarefas[tarefas_ordenadas[j]]) {
+                int temp = tarefas_ordenadas[i];
+                tarefas_ordenadas[i] = tarefas_ordenadas[j];
+                tarefas_ordenadas[j] = temp;
+            }
+        }
+    }
+
+    // Itera sobre as tarefas ordenadas
+    for (int i = 0; i < instancia->num_tarefas; i++) {
+        int tarefa = tarefas_ordenadas[i];
+        int estacao_valida = 1;
+
+        // Verifica as precedências da tarefa com as tarefas anteriores
+        for (int j = 0; j < instancia->num_tarefas; j++) {
+            if (instancia->precedencias[tarefa][j]) {
+                // Verifica se a tarefa possui precedência com alguma tarefa anterior não atribuída à mesma estação
+                if (solucao->estacao[j] != -1 && solucao->estacao[j] != estacao_atual) {
+                    estacao_valida = 0;
+                    break;
+                }
+            }
+        }
+
+        // Atribui a tarefa à estação válida
+        if (estacao_valida) {
+            solucao->estacao[tarefa] = estacao_atual;
+            solucao->tempo_conclusao[tarefa] = solucao->tempo_conclusao[tarefa] + instancia->custo_tarefas[tarefa];
+            estacao_atual = (estacao_atual + 1) % instancia->num_estacoes;
+        }
+    }
 }
 
-// Função para calcular o makespan de uma solução
-void calcular_makespan(const Instancia *instancia, const Solucao *solucao, int *makespan) {
+int calcular_makespan(const Instancia *instancia, const Solucao *solucao) {
     int tempos_estacoes[MAX_ESTACOES] = {0};
+    int makespan = 0;
 
     for (int t = 0; t < instancia->num_tarefas; t++) {
         int estacao_tarefa = solucao->estacao[t];
         int custo_tarefa = instancia->custo_tarefas[t];
         int tempo_estacao = tempos_estacoes[estacao_tarefa];
+        int tempo_conclusao = tempo_estacao + custo_tarefa;
 
-        if (tempo_estacao > *makespan) {
-            *makespan = tempo_estacao;
+        // Verifica as precedências da tarefa com as tarefas anteriores na mesma estação
+        for (int j = 0; j < instancia->num_tarefas; j++) {
+            if (solucao->estacao[j] == estacao_tarefa && instancia->precedencias[j][t]) {
+                int tempo_predecessora = tempos_estacoes[estacao_tarefa] + instancia->custo_tarefas[j];
+                if (tempo_predecessora > tempo_estacao) {
+                    tempo_estacao = tempo_predecessora;
+                }
+            }
         }
 
-        tempos_estacoes[estacao_tarefa] += custo_tarefa;
+        // Verifica se o tempo de conclusão da tarefa é maior que o makespan atual
+        if (tempo_conclusao > makespan) {
+            makespan = tempo_conclusao;
+        }
+
+        // Atualiza o tempo da estação após a execução da tarefa
+        tempos_estacoes[estacao_tarefa] = tempo_conclusao;
     }
+
+    return makespan;
 }
 
-// Função para resolver a instância
 void resolver_instancia(const Instancia *instancia, Solucao *solucao) {
     solucao->makespan = 0;
 
-    // Lógica para atribuir as tarefas às estações (solução inicial)
-    for (int t = 0; t < instancia->num_tarefas; t++) {
-        solucao->estacao[t] = t % instancia->num_estacoes;
-    }
+    atribuir_tarefas(instancia, solucao);
 
-    calcular_makespan(instancia, solucao, &solucao->makespan);
-
-    // Implementar lógica de melhoria da solução aqui
-
-    calcular_makespan(instancia, solucao, &solucao->makespan);
+    solucao->makespan = calcular_makespan(instancia, solucao);
 }
 
-// Função para escrever a solução em um arquivo
-void escrever_solucao(const char *nome_arquivo, const Instancia *instancia, const Solucao *solucao) {
-    FILE *arquivo = fopen(nome_arquivo, "w");
+void imprimir_solucao(const Instancia *instancia, const Solucao *solucao) {
+    printf("Solucao Final:\n");
+    for (int m = 0; m < instancia->num_estacoes; m++) {
+        printf("Maquina %d: ", m + 1);
+
+        for (int t = 0; t < instancia->num_tarefas; t++) {
+            if (solucao->estacao[t] == m) {
+                printf("%d,", t + 1);
+            }
+        }
+
+        printf("\n");
+    }
+    printf("FO Inicial: %d\n", solucao->makespan);
+    //printf("FO Final: %d\n", calcular_makespan(instancia, solucao));
+}
+
+void escrever_solucao(const Instancia *instancia, const Solucao *solucao, const char *nome_arquivo_saida) {
+    FILE *arquivo = fopen(nome_arquivo_saida, "a");  // Abre o arquivo no modo de apêndice (append)
+
     if (arquivo == NULL) {
-        printf("Erro ao criar o arquivo de saída.\n");
+        printf("Erro ao abrir o arquivo de saída.\n");
         return;
     }
 
-    fprintf(arquivo, "Solução Inicial:\n");
-    for (int t = 0; t < instancia->num_tarefas; t++) {
-        fprintf(arquivo, "Tarefa %d: Estação %d\n", t + 1, solucao->estacao[t] + 1);
-    }
-    fprintf(arquivo, "Makespan: %d\n", solucao->makespan);
-    fprintf(arquivo, "\n");
+    fprintf(arquivo, "Solução Final para %d Máquinas:\n", instancia->num_estacoes);
 
-    fprintf(arquivo, "Solução Final:\n");
-    for (int t = 0; t < instancia->num_tarefas; t++) {
-        fprintf(arquivo, "Tarefa %d: Estação %d\n", t + 1, solucao->estacao[t] + 1);
+    for (int m = 0; m < instancia->num_estacoes; m++) {
+        fprintf(arquivo, "Máquina %d: ", m + 1);
+
+        for (int t = 0; t < instancia->num_tarefas; t++) {
+            if (solucao->estacao[t] == m) {
+                fprintf(arquivo, "%d,", t + 1);
+            }
+        }
+
+        fprintf(arquivo, "\n");
     }
-    fprintf(arquivo, "Makespan Final: %d\n", solucao->makespan);
+
+    fprintf(arquivo, "FO Inicial: %d\n", solucao->makespan);
+
+    int fo_final = calcular_makespan(instancia, solucao);
+    fprintf(arquivo, "FO Final: %d\n\n", fo_final);
 
     fclose(arquivo);
+}
+
+double calcular_tempo_execucao(clock_t inicio, clock_t fim) {
+    return (double)(fim - inicio) / CLOCKS_PER_SEC;
 }
 
 int main() {
     Instancia instancia;
     Solucao solucao;
 
-    const char *nome_arquivo = "KILBRID.IN2";
+    const char *nome_arquivo = "KILBRID.IN2";  
     ler_instancia(nome_arquivo, &instancia);
 
-    printf("Informe o número de MAQUINAS (entre 3 e 11): ");
-    scanf("%d", &instancia.num_estacoes);
+    clock_t inicio = clock();
 
-    if (instancia.num_estacoes < 3 || instancia.num_estacoes > 11) {
-        printf("Número de estações inválido. O valor deve estar entre 3 e 11.\n", instancia.num_tarefas);
-        return 1;
+    for (int num_maquinas = 3; num_maquinas <= 11; num_maquinas++) {
+        printf("estacao: %d\n", num_maquinas);
+
+        // Definir o número de estacoes
+        instancia.num_estacoes = num_maquinas;
+
+        // Resolver a instância
+        resolver_instancia(&instancia, &solucao);
+
+        // Imprimir a solução
+        imprimir_solucao(&instancia, &solucao);
+
+        // Escrever a solução em arquivo
+        char nome_arquivo_saida[20];
+        sprintf(nome_arquivo_saida, "solucao_%d.txt", num_maquinas);
+        escrever_solucao(&instancia, &solucao, nome_arquivo_saida);
+
+        printf("\n");
     }
 
-    resolver_instancia(&instancia, &solucao);
+    clock_t fim = clock();
+    double tempo_execucao = calcular_tempo_execucao(inicio, fim);
 
-    imprimir_solucao(&instancia, &solucao);
-    escrever_solucao("solucao.txt", &instancia, &solucao);
+    printf("Tempo de execução: %.2f segundos\n", tempo_execucao);
 
     return 0;
 }
-
