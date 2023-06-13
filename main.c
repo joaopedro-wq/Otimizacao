@@ -58,13 +58,32 @@ void atribuir_tarefas(const Instancia *instancia, Solucao *solucao)
         int tarefa = tarefas_ordenadas[i];
         int estacao_valida = 1;
 
-        // Verifica as precedências da tarefa com as tarefas anteriores
-        for (int j = 0; j < instancia->num_tarefas; j++)
+        // Verifica as precedências diretas e indiretas da tarefa com as tarefas anteriores atribuídas à mesma estação
+        for (int j = 0; j < tarefa; j++)
         {
-            if (instancia->precedencias[tarefa][j])
+            if (solucao->estacao[j] == estacao_atual)
             {
+                int tem_precedencia = 0;
+                // Verifica se a tarefa tem precedência direta com alguma tarefa anterior
+                if (instancia->precedencias[tarefa][j])
+                {
+                    tem_precedencia = 1;
+                }
+                else
+                {
+                    // Verifica se a tarefa tem precedência indireta com alguma tarefa anterior atribuída à mesma estação
+                    for (int k = 0; k < j; k++)
+                    {
+                        if (solucao->estacao[k] == estacao_atual && instancia->precedencias[k][tarefa])
+                        {
+                            tem_precedencia = 1;
+                            break;
+                        }
+                    }
+                }
+
                 // Verifica se a tarefa possui precedência com alguma tarefa anterior não atribuída à mesma estação
-                if (solucao->estacao[j] != -1 && solucao->estacao[j] != estacao_atual)
+                if (tem_precedencia && solucao->estacao[tarefa] != estacao_atual)
                 {
                     estacao_valida = 0;
                     break;
@@ -81,6 +100,7 @@ void atribuir_tarefas(const Instancia *instancia, Solucao *solucao)
         }
     }
 }
+
 int calcular_makespan(const Instancia *instancia, const Solucao *solucao)
 {
     int tempos_estacoes[MAX_ESTACOES] = {0};
