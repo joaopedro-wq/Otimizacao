@@ -1,199 +1,220 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include "main.h"  
+#include <string.h>
+#include <limits.h>
 
-void ler_instancia(const char *nome_arquivo, Instancia *instancia) {
-    FILE *arquivo = fopen(nome_arquivo, "r");
-    if (arquivo == NULL) {
-        printf("Erro ao abrir o arquivo.\n");
+#define MAX_TAREFAS 1000
+#define MAX_MACHINES 100
+
+typedef struct {
+    int custo;
+    int precedencia[MAX_TAREFAS];
+    int num_predecessores;
+} Tarefa;
+
+typedef struct {
+    int tarefas[MAX_TAREFAS];
+    int num_tarefas;
+} Maquina;
+
+Tarefa tarefas[MAX_TAREFAS];
+Maquina maquinas[MAX_MACHINES];
+int num_tarefas;
+int num_maquinas;
+
+void lerInstancias(char* arquivo) {
+    FILE* file = fopen(arquivo, "r");
+    if (file == NULL) {
+        printf("Erro ao abrir arquivo\n");
         exit(1);
     }
 
-    fscanf(arquivo, "%d", &instancia->num_tarefas);
+    fscanf(file, "%d", &num_tarefas);
 
-    for (int i = 0; i < instancia->num_tarefas; i++) {
-        fscanf(arquivo, "%d", &instancia->custo_tarefas[i]);
+    for (int i = 0; i < num_tarefas; i++) {
+        fscanf(file, "%d", &tarefas[i].custo);
     }
 
-    for (int i = 0; i < instancia->num_tarefas; i++) {
-        for (int j = 0; j < instancia->num_tarefas; j++) {
-            fscanf(arquivo, "%d,%d", &instancia->precedencias[i][j], &instancia->precedencias[i][j]);
-        }
+    int tarefa1, tarefa2;
+    while (fscanf(file, "%d,%d", &tarefa1, &tarefa2) == 2) {
+        if (tarefa1 == -1 && tarefa2 == -1)
+            break;
+        tarefas[tarefa2 - 1].precedencia[tarefas[tarefa2 - 1].num_predecessores++] = tarefa1 - 1;
     }
 
-    fclose(arquivo);
+    fclose(file);
 }
 
-void atribuir_tarefas(const Instancia *instancia, Solucao *solucao) {
-    int estacao_atual = 0;
-    int tarefas_ordenadas[MAX_TAREFAS];
+void criarSolucaoInicial() {
+    int tarefasRestantes[num_tarefas];
+    int tarefasEmOrdemPrecedencia[num_tarefas];
+    int num_tarefasRestantes = num_tarefas;
+    int count = 0;
 
-    // Armazena todos os índices das tarefas
-    for (int t = 0; t < instancia->num_tarefas; t++) {
-        tarefas_ordenadas[t] = t;
+    memset(tarefasRestantes, 1, sizeof(tarefasRestantes));
+    memset(tarefasEmOrdemPrecedencia, 0, sizeof(tarefasEmOrdemPrecedencia));
+
+    int cargaMaquinas[MAX_MACHINES] = {0};
+
+    for (int i = 0; i < num_maquinas; i++) {
+        maquinas[i].num_tarefas = 0;
     }
 
-    // Bubble Sort - ordenar decrescente
-    for (int i = 0; i < instancia->num_tarefas - 1; i++) {
-        for (int j = i + 1; j < instancia->num_tarefas; j++) {
-            if (instancia->custo_tarefas[tarefas_ordenadas[i]] < instancia->custo_tarefas[tarefas_ordenadas[j]]) {
-                int temp = tarefas_ordenadas[i];
-                tarefas_ordenadas[i] = tarefas_ordenadas[j];
-                tarefas_ordenadas[j] = temp;
-            }
-        }
-    }
+    while (num_tarefasRestantes > 0) {
+        int tarefaSelecionada = -1;
+        int menorCustoMaquina = INT_MAX;
 
-    // Itera sobre as tarefas ordenadas
-    for (int i = 0; i < instancia->num_tarefas; i++) {
-        int tarefa = tarefas_ordenadas[i];
-        int estacao_valida = 1;
+        for (int i = 0; i < num_tarefas; i++) {
+            if (tarefasRestantes[i]) {
+                int podeAtribuir = 1;
 
-        // Verifica as precedências da tarefa com as tarefas anteriores
-        for (int j = 0; j < instancia->num_tarefas; j++) {
-            if (instancia->precedencias[tarefa][j]) {
-                // Verifica se a tarefa possui precedência com alguma tarefa anterior não atribuída à mesma estação
-                if (solucao->estacao[j] != -1 && solucao->estacao[j] != estacao_atual) {
-                    estacao_valida = 0;
-                    break;
+                for (int j = 0; j < tarefas[i].num_predecessores; j++) {
+                    int tarefaPredecessora = tarefas[i].precedencia[j];
+                    if (tarefasRestantes[tarefaPredecessora]) {
+                        podeAtribuir = 0;
+                        break;
+                    }
+                }
+
+                if (podeAtribuir) {
+                    int custoTarefa = tarefas[i].custo;
+                    for (int k = 0; k < num_maquinas; k++) {
+                        if (cargaMaquinas[k] + custoTarefa < menorCustoMaquina) {
+                            menorCustoMaquina = cargaMaquinas[k] + custoTarefa;
+                            tarefaSelecionada = i;
+                        }
+                    }
                 }
             }
         }
-
-        // Atribui a tarefa à estação válida
-        if (estacao_valida) {
-            solucao->estacao[tarefa] = estacao_atual;
-            solucao->tempo_conclusao[tarefa] = solucao->tempo_conclusao[tarefa] + instancia->custo_tarefas[tarefa];
-            estacao_atual = (estacao_atual + 1) % instancia->num_estacoes;
+        
+        if (tarefaSelecionada != -1) {
+            tarefasEmOrdemPrecedencia[count] = tarefaSelecionada + 1;
+            tarefasRestantes[tarefaSelecionada] = 0;
+            num_tarefasRestantes--;
+            count++;
+            int custoTarefaSelecionada = tarefas[tarefaSelecionada].custo;
+            for (int k = 0; k < num_maquinas; k++) {
+                if (cargaMaquinas[k] + custoTarefaSelecionada < menorCustoMaquina) {
+                    menorCustoMaquina = cargaMaquinas[k] + custoTarefaSelecionada;
+                }
+            }
+            cargaMaquinas[tarefaSelecionada % num_maquinas] += custoTarefaSelecionada;
         }
     }
+
+    int minTarefasPorMaquina = num_tarefas / num_maquinas;
+
+    for (int i = 0; i < num_maquinas; i++) {
+        int num_tarefasMaquina = minTarefasPorMaquina;
+
+        if (i == num_maquinas - 1) {
+            num_tarefasMaquina += num_tarefas % num_maquinas;
+        }
+
+        for (int j = 0; j < num_tarefasMaquina; j++) {
+            int tarefaAtual = tarefasEmOrdemPrecedencia[i * minTarefasPorMaquina + j] - 1;
+            maquinas[i].tarefas[maquinas[i].num_tarefas] = tarefaAtual;
+            maquinas[i].num_tarefas++;
+
+            cargaMaquinas[i] += tarefas[tarefaAtual].custo;
+        }
+    }
+
 }
 
-int calcular_makespan(const Instancia *instancia, const Solucao *solucao) {
-    int tempos_estacoes[MAX_ESTACOES] = {0};
+int calcularMakespan() {
     int makespan = 0;
 
-    for (int t = 0; t < instancia->num_tarefas; t++) {
-        int estacao_tarefa = solucao->estacao[t];
-        int custo_tarefa = instancia->custo_tarefas[t];
-        int tempo_estacao = tempos_estacoes[estacao_tarefa];
-        int tempo_conclusao = tempo_estacao + custo_tarefa;
+    for (int i = 0; i < num_maquinas; i++) {
+        int carga = 0;
 
-        // Verifica as precedências da tarefa com as tarefas anteriores na mesma estação
-        for (int j = 0; j < instancia->num_tarefas; j++) {
-            if (solucao->estacao[j] == estacao_tarefa && instancia->precedencias[j][t]) {
-                int tempo_predecessora = tempos_estacoes[estacao_tarefa] + instancia->custo_tarefas[j];
-                if (tempo_predecessora > tempo_estacao) {
-                    tempo_estacao = tempo_predecessora;
-                }
-            }
+        for (int j = 0; j < maquinas[i].num_tarefas; j++) {
+            int tarefa = maquinas[i].tarefas[j];
+            carga += tarefas[tarefa].custo;
         }
 
-        // Verifica se o tempo de conclusão da tarefa é maior que o makespan atual
-        if (tempo_conclusao > makespan) {
-            makespan = tempo_conclusao;
-        }
-
-        // Atualiza o tempo da estação após a execução da tarefa
-        tempos_estacoes[estacao_tarefa] = tempo_conclusao;
+        if (carga > makespan)
+            makespan = carga;
     }
-
     return makespan;
 }
 
-void resolver_instancia(const Instancia *instancia, Solucao *solucao) {
-    solucao->makespan = 0;
+void escreverSolucao() {
+    for (int i = 0; i < num_maquinas; i++) {
+        printf("Máquina %d:", i + 1);
+        for (int j = 0; j < maquinas[i].num_tarefas; j++) {
+            int tarefa = maquinas[i].tarefas[j];
+            printf(" %d", tarefa + 1);
+        }
+        printf(" (tarefas atendidas)\n");
+    }
 
-    atribuir_tarefas(instancia, solucao);
-
-    solucao->makespan = calcular_makespan(instancia, solucao);
+    int makespan = calcularMakespan();
+    printf("FO: %d \n", makespan);
 }
 
-void imprimir_solucao(const Instancia *instancia, const Solucao *solucao) {
-    printf("Solucao Final:\n");
-    for (int m = 0; m < instancia->num_estacoes; m++) {
-        printf("Maquina %d: ", m + 1);
+void aplicarRefinamento() {
+    int makespan = calcularMakespan();
 
-        for (int t = 0; t < instancia->num_tarefas; t++) {
-            if (solucao->estacao[t] == m) {
-                printf("%d,", t + 1);
+    for (int i = 0; i < num_maquinas; i++) {
+        int tarefasMaquinaInicial = maquinas[i].num_tarefas;
+
+        for (int j = 0; j < tarefasMaquinaInicial; j++) {
+            int tarefa = maquinas[i].tarefas[j];
+            maquinas[i].num_tarefas--;
+
+            int melhorMaquina = -1;
+            int menorMakespan = makespan;
+
+            for (int k = 0; k < num_maquinas; k++) {
+                if (k != i) {
+                    maquinas[k].tarefas[maquinas[k].num_tarefas] = tarefa;
+                    maquinas[k].num_tarefas++;
+
+                    int novoMakespan = calcularMakespan();
+
+                    if (novoMakespan < menorMakespan) {
+                        menorMakespan = novoMakespan;
+                        melhorMaquina = k;
+                    }
+
+                    maquinas[k].num_tarefas--;
+                }
+            }
+
+            if (melhorMaquina != -1) {
+                maquinas[melhorMaquina].tarefas[maquinas[melhorMaquina].num_tarefas] = tarefa;
+                maquinas[melhorMaquina].num_tarefas++;
+
+                makespan = menorMakespan;
+            }
+            else {
+                maquinas[i].tarefas[maquinas[i].num_tarefas] = tarefa;
+                maquinas[i].num_tarefas++;
             }
         }
-
-        printf("\n");
     }
-    printf("FO Inicial: %d\n", solucao->makespan);
-    //printf("FO Final: %d\n", calcular_makespan(instancia, solucao));
 }
 
-void escrever_solucao(const Instancia *instancia, const Solucao *solucao, const char *nome_arquivo_saida) {
-    FILE *arquivo = fopen(nome_arquivo_saida, "a");  // Abre o arquivo no modo de apêndice (append)
-
-    if (arquivo == NULL) {
-        printf("Erro ao abrir o arquivo de saída.\n");
-        return;
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        printf("Uso: %s <arquivo_instancias>\n", argv[0]);
+        return 1;
     }
 
-    fprintf(arquivo, "Solução Final para %d Máquinas:\n", instancia->num_estacoes);
+    lerInstancias(argv[1]);
+    num_maquinas = num_tarefas / 2;
 
-    for (int m = 0; m < instancia->num_estacoes; m++) {
-        fprintf(arquivo, "Máquina %d: ", m + 1);
+    criarSolucaoInicial();
 
-        for (int t = 0; t < instancia->num_tarefas; t++) {
-            if (solucao->estacao[t] == m) {
-                fprintf(arquivo, "%d,", t + 1);
-            }
-        }
+    printf("Solução inicial:\n");
+    escreverSolucao();
 
-        fprintf(arquivo, "\n");
-    }
+    aplicarRefinamento();
 
-    fprintf(arquivo, "FO Inicial: %d\n", solucao->makespan);
-
-    int fo_final = calcular_makespan(instancia, solucao);
-    fprintf(arquivo, "FO Final: %d\n\n", fo_final);
-
-    fclose(arquivo);
-}
-
-double calcular_tempo_execucao(clock_t inicio, clock_t fim) {
-    return (double)(fim - inicio) / CLOCKS_PER_SEC;
-}
-
-int main() {
-    Instancia instancia;
-    Solucao solucao;
-
-    const char *nome_arquivo = "KILBRID.IN2";  
-    ler_instancia(nome_arquivo, &instancia);
-
-    clock_t inicio = clock();
-
-    for (int num_maquinas = 3; num_maquinas <= 11; num_maquinas++) {
-        printf("estacao: %d\n", num_maquinas);
-
-        // Definir o número de estacoes
-        instancia.num_estacoes = num_maquinas;
-
-        // Resolver a instância
-        resolver_instancia(&instancia, &solucao);
-
-        // Imprimir a solução
-        imprimir_solucao(&instancia, &solucao);
-
-        // Escrever a solução em arquivo
-        char nome_arquivo_saida[20];
-        sprintf(nome_arquivo_saida, "solucao_%d.txt", num_maquinas);
-        escrever_solucao(&instancia, &solucao, nome_arquivo_saida);
-
-        printf("\n");
-    }
-
-    clock_t fim = clock();
-    double tempo_execucao = calcular_tempo_execucao(inicio, fim);
-
-    printf("Tempo de execução: %.2f segundos\n", tempo_execucao);
+    printf("\nSolução refinada:\n");
+    escreverSolucao();
 
     return 0;
 }
