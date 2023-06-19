@@ -1,34 +1,48 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#define MAX_TAREFAS 100
-#define MAX_ESTACOES 11
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+#include <math.h>
+#include <stdbool.h>
+#include <time.h>
 
-typedef struct {
-    int num_tarefas;
-    int num_estacoes;
-    int custo_tarefas[MAX_TAREFAS];
-    int precedencias[MAX_TAREFAS][MAX_TAREFAS];
-} Instancia;
+#define MAX_TAREFAS 1000
+#define MAX_MAQUINAS 11
 
-typedef struct {
-    int estacao[MAX_TAREFAS];
-    int tempo_conclusao[MAX_TAREFAS];
-    int makespan;
-} Solucao;
+typedef struct
+{
+    int custo;
+    int precedencia[MAX_TAREFAS];
+    int num_predecessores;
+} Tarefa;
 
-void ler_instancia(const char *nome_arquivo, Instancia *instancia);
-int verificar_precedencia(const Instancia *instancia, const Solucao *solucao, int tarefa, int estacao);
-void atribuir_tarefas(const Instancia *instancia, Solucao *solucao);
+typedef struct Precedencia
+{
+    int tarefa;
+    struct Precedencia *proxima;
+} Precedencia;
 
-int calcular_makespan(const Instancia *instancia, const Solucao *solucao);
+typedef struct
+{
+    Precedencia *primeira;
+    Precedencia *ultima;
+} OrdemPrecedencia;
 
-void busca_local(const Instancia *instancia, Solucao *solucao) ;
-void resolver_instancia(const Instancia *instancia, Solucao *solucao);
-void busca_local(const Instancia *instancia, Solucao *solucao);
-void escrever_solucao(const Instancia *instancia, const Solucao *solucao, const char *nome_arquivo_saida);
-void encontrar_menor_makespan(const Instancia *instancia, Solucao *solucao);
-void imprimir_solucao(const Instancia *instancia, const Solucao *solucao);
-double calcular_tempo_execucao(clock_t inicio, clock_t fim);
+extern Tarefa tarefas[MAX_TAREFAS];
+extern int num_tarefas;
 
-#endif  // SCHEDULING_H
+void lerInstancias(const char *arquivo);
+void imprimirPrecedencias(const Tarefa *tarefas, int num_tarefas);
+int *obterPrecedencias(int tarefa, int *num_precedencias);
+void imprimirPrecedenciasDiretasEIndiretas(const Tarefa *tarefas, int num_tarefas);
+bool todasPrecedenciasAlocadas(int tarefa, const int *precedencias, int num_precedencias, const bool *alocada);
+void atribuirTarefa(int tarefa, const int *precedencias, int num_precedencias, bool *alocada, int *ordem, int *indice_ordem, int *makespan);
+int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan);
+void imprimirOrdemAtribuicao(const int *ordem, int num_tarefas);
+void atribuirTarefasPorMaquinas(const int *ordem, int num_tarefas, int num_maquinas);
+void imprimirTarefasPorMaquina(const int *ordem, int num_tarefas, int num_maquinas);
+
+#endif /* MAIN_H */
