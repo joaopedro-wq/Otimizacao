@@ -2,41 +2,57 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <math.h>
+#include <stdbool.h>
+#include <time.h>
 
 #define MAX_TAREFAS 1000
-#define MAX_MACHINES 100
+#define MAX_MAQUINAS 11
 
-typedef struct {
+typedef struct
+{
     int custo;
     int precedencia[MAX_TAREFAS];
     int num_predecessores;
 } Tarefa;
 
-typedef struct {
-    int tarefas[MAX_TAREFAS];
-    int num_tarefas;
-} Maquina;
+typedef struct Precedencia
+{
+    int tarefa;
+    struct Precedencia *proxima;
+} Precedencia;
+
+typedef struct
+{
+    Precedencia *primeira;
+    Precedencia *ultima;
+} OrdemPrecedencia;
+
+extern Tarefa tarefas[MAX_TAREFAS];
+extern int num_tarefas;
 
 Tarefa tarefas[MAX_TAREFAS];
-Maquina maquinas[MAX_MACHINES];
 int num_tarefas;
-int num_maquinas;
 
-void lerInstancias(char* arquivo) {
-    FILE* file = fopen(arquivo, "r");
-    if (file == NULL) {
+void lerInstancias(const char *arquivo)
+{
+    FILE *file = fopen(arquivo, "r");
+    if (file == NULL)
+    {
         printf("Erro ao abrir arquivo\n");
         exit(1);
     }
 
     fscanf(file, "%d", &num_tarefas);
 
-    for (int i = 0; i < num_tarefas; i++) {
+    for (int i = 0; i < num_tarefas; i++)
+    {
         fscanf(file, "%d", &tarefas[i].custo);
     }
 
     int tarefa1, tarefa2;
-    while (fscanf(file, "%d,%d", &tarefa1, &tarefa2) == 2) {
+    while (fscanf(file, "%d,%d", &tarefa1, &tarefa2) == 2)
+    {
         if (tarefa1 == -1 && tarefa2 == -1)
             break;
         tarefas[tarefa2 - 1].precedencia[tarefas[tarefa2 - 1].num_predecessores++] = tarefa1 - 1;
@@ -45,176 +61,408 @@ void lerInstancias(char* arquivo) {
     fclose(file);
 }
 
-void criarSolucaoInicial() {
-    int tarefasRestantes[num_tarefas];
-    int tarefasEmOrdemPrecedencia[num_tarefas];
-    int num_tarefasRestantes = num_tarefas;
-    int count = 0;
-
-    memset(tarefasRestantes, 1, sizeof(tarefasRestantes));
-    memset(tarefasEmOrdemPrecedencia, 0, sizeof(tarefasEmOrdemPrecedencia));
-
-    int cargaMaquinas[MAX_MACHINES] = {0};
-
-    for (int i = 0; i < num_maquinas; i++) {
-        maquinas[i].num_tarefas = 0;
+void imprimirPrecedencias(const Tarefa *tarefas, int num_tarefas)
+{
+    for (int i = 0; i < num_tarefas; i++)
+    {
+        printf("Tarefa %d: Precedências [", i + 1);
+        for (int j = 0; j < tarefas[i].num_predecessores; j++)
+        {
+            printf("%d", tarefas[i].precedencia[j] + 1);
+            if (j < tarefas[i].num_predecessores - 1)
+            {
+                printf(", ");
+            }
+        }
+        printf("]\n");
     }
+}
 
-    while (num_tarefasRestantes > 0) {
-        int tarefaSelecionada = -1;
-        int menorCustoMaquina = INT_MAX;
+int *obterPrecedencias(int tarefa, int *num_precedencias)
+{
+    int *precedencias = malloc(MAX_TAREFAS * sizeof(int));
+    *num_precedencias = 0;
 
-        for (int i = 0; i < num_tarefas; i++) {
-            if (tarefasRestantes[i]) {
-                int podeAtribuir = 1;
+    // Verificar as precedências diretas
+    for (int i = 0; i < tarefas[tarefa].num_predecessores; i++)
+    {
+        int precedencia = tarefas[tarefa].precedencia[i];
 
-                for (int j = 0; j < tarefas[i].num_predecessores; j++) {
-                    int tarefaPredecessora = tarefas[i].precedencia[j];
-                    if (tarefasRestantes[tarefaPredecessora]) {
-                        podeAtribuir = 0;
+        // Verificar se a precedência já está no vetor
+        int repetido = 0;
+        for (int j = 0; j < *num_precedencias; j++)
+        {
+            if (precedencias[j] == precedencia)
+            {
+                repetido = 1;
+                break;
+            }
+        }
+
+        // Adicionar a precedência somente se não estiver repetida
+        if (!repetido)
+        {
+            precedencias[*num_precedencias] = precedencia;
+            (*num_precedencias)++;
+
+            // Chamar recursivamente para obter as precedências indiretas
+            int indiretas_num_precedencias;
+            int *indiretas = obterPrecedencias(precedencia, &indiretas_num_precedencias);
+            for (int j = 0; j < indiretas_num_precedencias; j++)
+            {
+                int precedencia_indireta = indiretas[j];
+                // Verificar se a precedência indireta já está no vetor
+                int repetido_indireto = 0;
+                for (int k = 0; k < *num_precedencias; k++)
+                {
+                    if (precedencias[k] == precedencia_indireta)
+                    {
+                        repetido_indireto = 1;
                         break;
                     }
                 }
 
-                if (podeAtribuir) {
-                    int custoTarefa = tarefas[i].custo;
-                    for (int k = 0; k < num_maquinas; k++) {
-                        if (cargaMaquinas[k] + custoTarefa < menorCustoMaquina) {
-                            menorCustoMaquina = cargaMaquinas[k] + custoTarefa;
-                            tarefaSelecionada = i;
-                        }
-                    }
+                // Adicionar a precedência indireta somente se não estiver repetida
+                if (!repetido_indireto)
+                {
+                    precedencias[*num_precedencias] = precedencia_indireta;
+                    (*num_precedencias)++;
                 }
             }
-        }
-        
-        if (tarefaSelecionada != -1) {
-            tarefasEmOrdemPrecedencia[count] = tarefaSelecionada + 1;
-            tarefasRestantes[tarefaSelecionada] = 0;
-            num_tarefasRestantes--;
-            count++;
-            int custoTarefaSelecionada = tarefas[tarefaSelecionada].custo;
-            for (int k = 0; k < num_maquinas; k++) {
-                if (cargaMaquinas[k] + custoTarefaSelecionada < menorCustoMaquina) {
-                    menorCustoMaquina = cargaMaquinas[k] + custoTarefaSelecionada;
-                }
-            }
-            cargaMaquinas[tarefaSelecionada % num_maquinas] += custoTarefaSelecionada;
+            free(indiretas);
         }
     }
 
-    int minTarefasPorMaquina = num_tarefas / num_maquinas;
-
-    for (int i = 0; i < num_maquinas; i++) {
-        int num_tarefasMaquina = minTarefasPorMaquina;
-
-        if (i == num_maquinas - 1) {
-            num_tarefasMaquina += num_tarefas % num_maquinas;
-        }
-
-        for (int j = 0; j < num_tarefasMaquina; j++) {
-            int tarefaAtual = tarefasEmOrdemPrecedencia[i * minTarefasPorMaquina + j] - 1;
-            maquinas[i].tarefas[maquinas[i].num_tarefas] = tarefaAtual;
-            maquinas[i].num_tarefas++;
-
-            cargaMaquinas[i] += tarefas[tarefaAtual].custo;
-        }
-    }
-
+    return precedencias;
 }
 
-int calcularMakespan() {
-    int makespan = 0;
+void imprimirPrecedenciasDiretasEIndiretas(const Tarefa *tarefas, int num_tarefas)
+{
+    for (int i = 0; i < num_tarefas; i++)
+    {
+        int num_precedencias;
+        int *precedencias = obterPrecedencias(i, &num_precedencias);
 
-    for (int i = 0; i < num_maquinas; i++) {
-        int carga = 0;
-
-        for (int j = 0; j < maquinas[i].num_tarefas; j++) {
-            int tarefa = maquinas[i].tarefas[j];
-            carga += tarefas[tarefa].custo;
+        printf("Tarefa %d: Precedências [", i + 1);
+        for (int j = 0; j < num_precedencias; j++)
+        {
+            printf("%d", precedencias[j] + 1);
+            if (j < num_precedencias - 1)
+            {
+                printf(", ");
+            }
         }
+        printf("]\n");
 
-        if (carga > makespan)
-            makespan = carga;
+        free(precedencias);
     }
+}
+
+bool todasPrecedenciasAlocadas(int tarefa, const int *precedencias, int num_precedencias, const bool *alocada)
+{
+    for (int i = 0; i < num_precedencias; i++)
+    {
+        if (!alocada[precedencias[i]])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void atribuirTarefa(int tarefa, const int *precedencias, int num_precedencias, bool *alocada, int *ordem, int *indice_ordem, int *makespan)
+{
+    if (alocada[tarefa])
+    {
+        return;
+    }
+
+    if (!todasPrecedenciasAlocadas(tarefa, precedencias, num_precedencias, alocada))
+    {
+        return;
+    }
+
+    alocada[tarefa] = true;
+    ordem[(*indice_ordem)++] = tarefa;
+
+    // Atualizar makespan da máquina correspondente
+    int maquina = (*indice_ordem - 1) % MAX_MAQUINAS;
+    *makespan += tarefas[tarefa].custo;
+
+    for (int i = 0; i < num_tarefas; i++)
+    {
+        if (tarefas[i].num_predecessores > 0)
+        {
+            int *precedencias_indiretas = obterPrecedencias(i, &num_precedencias);
+            atribuirTarefa(i, precedencias_indiretas, num_precedencias, alocada, ordem, indice_ordem, makespan);
+            free(precedencias_indiretas);
+        }
+    }
+}
+
+int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan)
+{
+    bool alocada[MAX_TAREFAS] = {false};
+    int *ordem = malloc(num_tarefas * sizeof(int));
+    int indice_ordem = 0;
+    *makespan = 0;
+
+    // Embaralhar os índices das tarefas
+    int indices_embaralhados[MAX_TAREFAS];
+    for (int i = 0; i < num_tarefas; i++)
+    {
+        indices_embaralhados[i] = i;
+    }
+    srand(time(NULL));
+    for (int i = num_tarefas - 1; i > 0; i--)
+    {
+        int j = rand() % (i + 1);
+        int temp = indices_embaralhados[i];
+        indices_embaralhados[i] = indices_embaralhados[j];
+        indices_embaralhados[j] = temp;
+    }
+
+    for (int i = 0; i < num_tarefas; i++)
+    {
+        int tarefa = indices_embaralhados[i];
+        int num_precedencias;
+        int *precedencias = obterPrecedencias(tarefa, &num_precedencias);
+        atribuirTarefa(tarefa, precedencias, num_precedencias, alocada, ordem, &indice_ordem, makespan);
+        free(precedencias);
+    }
+
+    return ordem;
+}
+
+void imprimirOrdemAtribuicao(const int *ordem, int num_tarefas)
+{
+    printf("Ordem de atribuição das tarefas:\n");
+    for (int i = 0; i < num_tarefas; i++)
+    {
+        printf("%d ", ordem[i] + 1);
+    }
+    printf("\n");
+}
+
+void atribuirTarefasPorMaquinas(const int *ordem, int num_tarefas, int num_maquinas)
+{
+
+    int *makespanDosCria = 0;
+    int tarefas_por_maquina = num_tarefas / num_maquinas;
+    int tarefas_extras = num_tarefas % num_maquinas;
+
+    FILE *file = fopen("resultado.txt", "a");
+    if (file == NULL)
+    {
+        printf("Erro ao criar arquivo\n");
+        return;
+    }
+
+    int tempos_maquinas[MAX_MAQUINAS] = {0}; // Array para armazenar os tempos de cada máquina
+
+    fprintf(file, "Máquina 1:");
+    for (int i = 0; i < tarefas_por_maquina + tarefas_extras; i++)
+    {
+        int tarefa = ordem[i];
+        fprintf(file, " %d", tarefa + 1);
+        tempos_maquinas[0] += tarefas[tarefa].custo; // Adiciona o tempo da tarefa à máquina 1
+    }
+    fprintf(file, "\n");
+
+    int tarefa_inicio = tarefas_por_maquina + tarefas_extras;
+    for (int i = 1; i < num_maquinas; i++)
+    {
+        fprintf(file, "Máquina %d:", i + 1);
+        for (int j = 0; j < tarefas_por_maquina; j++)
+        {
+            int tarefa = ordem[tarefa_inicio];
+            fprintf(file, " %d", tarefa + 1);
+            tempos_maquinas[i] += tarefas[tarefa].custo; // Adiciona o tempo da tarefa à máquina i+1
+            tarefa_inicio++;
+        }
+        fprintf(file, "\n");
+    }
+
+    int makespan = 0;
+    for (int i = 0; i < num_maquinas; i++)
+    {
+        if (tempos_maquinas[i] > makespan)
+        {
+            makespan = tempos_maquinas[i]; // Encontra o maior tempo entre as máquinas
+        }
+    }
+
+    fprintf(file, " \n");
+    printf("FO Inicial: com %d Maquinas:  %d\n", num_maquinas, makespan);
+    fprintf(file, "Makespan: %d\n", makespan);
+
+    fclose(file);
+}
+
+int calcularMakespan(const int* ordem, int num_tarefas, int num_maquinas, const Tarefa* tarefas)
+{
+    int tempos_maquinas[MAX_MAQUINAS] = {0}; // Array para armazenar os tempos de cada máquina
+
+    for (int i = 0; i < num_tarefas; i++) {
+        int tarefa = ordem[i];
+        int maquina = i % num_maquinas;
+
+        // Adiciona o tempo da tarefa à máquina correspondente
+        tempos_maquinas[maquina] += tarefas[tarefa].custo;
+    }
+
+    int makespan = 0;
+    for (int i = 0; i < num_maquinas; i++) {
+        if (tempos_maquinas[i] > makespan) {
+            makespan = tempos_maquinas[i]; // Encontra o maior tempo entre as máquinas
+        }
+    }
+
     return makespan;
 }
 
-void escreverSolucao() {
-    for (int i = 0; i < num_maquinas; i++) {
-        printf("Máquina %d:", i + 1);
-        for (int j = 0; j < maquinas[i].num_tarefas; j++) {
-            int tarefa = maquinas[i].tarefas[j];
-            printf(" %d", tarefa + 1);
+
+void imprimirTarefasPorMaquina(const int *ordem, int num_tarefas, int num_maquinas)
+{
+    int tarefas_por_maquina = num_tarefas / num_maquinas;
+    int tarefas_extras = num_tarefas % num_maquinas;
+
+    printf("Solucao por Maquinas:\n");
+    for (int i = 0; i < num_maquinas; i++)
+    {
+        printf("Maquina %d:", i + 1);
+        int tarefa_inicio = i * tarefas_por_maquina + (i < tarefas_extras ? i : tarefas_extras);
+        int tarefa_fim = tarefa_inicio + tarefas_por_maquina + (i < tarefas_extras ? 1 : 0);
+        for (int j = tarefa_inicio; j < tarefa_fim; j++)
+        {
+            printf(" %d", ordem[j] + 1);
         }
-        printf(" (tarefas atendidas)\n");
-    }
-
-    int makespan = calcularMakespan();
-    printf("FO: %d \n", makespan);
-}
-
-void aplicarRefinamento() {
-    int makespan = calcularMakespan();
-
-    for (int i = 0; i < num_maquinas; i++) {
-        int tarefasMaquinaInicial = maquinas[i].num_tarefas;
-
-        for (int j = 0; j < tarefasMaquinaInicial; j++) {
-            int tarefa = maquinas[i].tarefas[j];
-            maquinas[i].num_tarefas--;
-
-            int melhorMaquina = -1;
-            int menorMakespan = makespan;
-
-            for (int k = 0; k < num_maquinas; k++) {
-                if (k != i) {
-                    maquinas[k].tarefas[maquinas[k].num_tarefas] = tarefa;
-                    maquinas[k].num_tarefas++;
-
-                    int novoMakespan = calcularMakespan();
-
-                    if (novoMakespan < menorMakespan) {
-                        menorMakespan = novoMakespan;
-                        melhorMaquina = k;
-                    }
-
-                    maquinas[k].num_tarefas--;
-                }
-            }
-
-            if (melhorMaquina != -1) {
-                maquinas[melhorMaquina].tarefas[maquinas[melhorMaquina].num_tarefas] = tarefa;
-                maquinas[melhorMaquina].num_tarefas++;
-
-                makespan = menorMakespan;
-            }
-            else {
-                maquinas[i].tarefas[maquinas[i].num_tarefas] = tarefa;
-                maquinas[i].num_tarefas++;
-            }
-        }
+        printf("\n");
     }
 }
 
-int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        printf("Uso: %s <arquivo_instancias>\n", argv[0]);
-        return 1;
+
+void aplicarVizinhanca(int* solucao_atual, int num_tarefas, const Tarefa* tarefas)
+{
+    int posicao1 = rand() % (num_tarefas - 1); // Escolhe a primeira posição aleatória na solução
+    int posicao2 = rand() % (num_tarefas - 1); // Escolhe a segunda posição aleatória na solução
+
+    // Troca de tarefas adjacentes
+    int tarefa1 = solucao_atual[posicao1];
+    int tarefa2 = solucao_atual[posicao1 + 1];
+
+    // Verifica se a troca viola as precedências
+    for (int i = 0; i < tarefas[tarefa2].num_predecessores; i++) {
+        int precedencia = tarefas[tarefa2].precedencia[i];
+        if ((precedencia == tarefa1 && posicao1 - 1 >= 0) ||
+            (precedencia == solucao_atual[posicao1 - 1] && posicao1 - 2 >= 0)) {
+            return; // A troca viola a precedência, portanto, não será realizada
+        }
     }
 
-    lerInstancias(argv[1]);
-    num_maquinas = num_tarefas / 2;
+    // Realiza a troca de tarefas adjacentes
+    int temp = solucao_atual[posicao1];
+    solucao_atual[posicao1] = solucao_atual[posicao1 + 1];
+    solucao_atual[posicao1 + 1] = temp;
 
-    criarSolucaoInicial();
+    // Verifica se a troca de tarefas adjacentes violou as precedências na segunda posição
+    if (posicao2 == posicao1 || posicao2 == posicao1 + 1) {
+        posicao2 = (posicao2 + 2) % num_tarefas; // Evita que a segunda posição seja a mesma ou adjacente à primeira
+    }
 
-    printf("Solução inicial:\n");
-    escreverSolucao();
+    // Troca de tarefas não adjacentes
+    int tarefa3 = solucao_atual[posicao2];
+    int tarefa4 = solucao_atual[posicao2 + 1];
 
-    aplicarRefinamento();
+    // Verifica se a troca viola as precedências
+    for (int i = 0; i < tarefas[tarefa4].num_predecessores; i++) {
+        int precedencia = tarefas[tarefa4].precedencia[i];
+        if ((precedencia == tarefa3 && posicao2 - 1 >= 0) ||
+            (precedencia == solucao_atual[posicao2 - 1] && posicao2 - 2 >= 0)) {
+            return; // A troca viola a precedência, portanto, não será realizada
+        }
+    }
 
-    printf("\nSolução refinada:\n");
-    escreverSolucao();
+    // Realiza a troca de tarefas não adjacentes
+    temp = solucao_atual[posicao2];
+    solucao_atual[posicao2] = solucao_atual[posicao2 + 1];
+    solucao_atual[posicao2 + 1] = temp;
+}
+
+
+
+int main()
+{
+    lerInstancias("KILBRID.IN2");
+    // Início da contagem de tempo
+    clock_t start_time = clock();
+
+    int makespan;
+    int *ordem = criarOrdemAtribuicao(tarefas, num_tarefas, &makespan);
+
+    // Impressão das soluções iniciais para as máquinas 3, 7 e 11
+    for (int i = 0; i < 3; i++)
+    {
+        int num_maquinas = (i == 0) ? 3 : (i == 1) ? 7 : 11;
+        printf("Solução para máquina %d:\n", num_maquinas);
+        atribuirTarefasPorMaquinas(ordem, num_tarefas, num_maquinas);
+        imprimirTarefasPorMaquina(ordem, num_tarefas, num_maquinas);
+        //printf("FO Inicial: com %d Maquinas:  %d\n", num_maquinas, makespan);
+        printf("\n");
+    }
+
+    // Aplicação da estrutura de vizinhança
+    int *melhor_solucao = ordem;
+    int melhor_makespan = makespan;
+    int iteracao = 0;
+    int num_iteracoes_sem_melhoria = 0;
+    const int MAX_ITERACOES_SEM_MELHORIA = 1000;
+
+    while (num_iteracoes_sem_melhoria < MAX_ITERACOES_SEM_MELHORIA)
+    {
+        int *vizinho = malloc(num_tarefas * sizeof(int));
+        memcpy(vizinho, melhor_solucao, num_tarefas * sizeof(int));
+
+        aplicarVizinhanca(vizinho, num_tarefas, tarefas); // Aplica a vizinhança ao vizinho
+
+        int vizinho_makespan = calcularMakespan(vizinho, num_tarefas, MAX_MAQUINAS, tarefas); // Calcula o makespan do vizinho
+
+        if (vizinho_makespan < melhor_makespan)
+        {
+            free(melhor_solucao);
+            melhor_solucao = vizinho;
+            melhor_makespan = vizinho_makespan;
+            num_iteracoes_sem_melhoria = 0;
+        }
+        else
+        {
+            free(vizinho);
+            num_iteracoes_sem_melhoria++;
+        }
+
+        iteracao++;
+    }
+
+    // Impressão da melhor solução encontrada para as máquinas 3, 7 e 11
+   
+    for (int i = 0; i < 3; i++)
+    {
+        int num_maquinas = (i == 0) ? 3 : (i == 1) ? 7 : 11;
+        printf("Solução para máquina %d:\n", num_maquinas);
+       // atribuirTarefasPorMaquinas(melhor_solucao, num_tarefas, num_maquinas);
+        imprimirTarefasPorMaquina(melhor_solucao, num_tarefas, num_maquinas);
+        int makespan = calcularMakespan(melhor_solucao, num_tarefas, num_maquinas, tarefas);
+        printf("Solução FInal: %d\n", makespan);
+        printf("\n");
+    }
+
+    // Cálculo do tempo de execução em segundos
+    clock_t end_time = clock();
+    double execution_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("Tempo de execução: %.6f segundos\n", execution_time);
+
+    imprimirPrecedenciasDiretasEIndiretas(tarefas, num_tarefas);
+    free(melhor_solucao);
 
     return 0;
-}
+}   
