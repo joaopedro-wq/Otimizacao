@@ -8,6 +8,7 @@
 
 #define MAX_TAREFAS 1000
 #define MAX_MAQUINAS 11
+#define MAX_ITERACOES_SEM_MELHORIA 1000
 
 typedef struct
 {
@@ -200,39 +201,66 @@ void atribuirTarefa(int tarefa, const int *precedencias, int num_precedencias, b
     }
 }
 
-int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan)
-{
+int* criarOrdemAtribuicao(const Tarefa* tarefas, int num_tarefas, int* makespan) {
     bool alocada[MAX_TAREFAS] = {false};
-    int *ordem = malloc(num_tarefas * sizeof(int));
-    int indice_ordem = 0;
+    int* ordem = malloc(num_tarefas * sizeof(int));
+    int indiceOrdem = 0;
     *makespan = 0;
+
+    // Passo 1: Construir uma lista restrita de candidatos (CRCL)
+    int crclSize = num_tarefas * 0.3; // Tamanho da CRCL (30% do número de tarefas)
+    if (crclSize < 1) {
+        crclSize = 1; // Pelo menos 1 candidato na CRCL
+    }
+    int* crcl = malloc(crclSize * sizeof(int));
+    int crclIndex = 0;
 
     // Embaralhar os índices das tarefas
     int indices_embaralhados[MAX_TAREFAS];
-    for (int i = 0; i < num_tarefas; i++)
-    {
+    for (int i = 0; i < num_tarefas; i++) {
         indices_embaralhados[i] = i;
     }
     srand(time(NULL));
-    for (int i = num_tarefas - 1; i > 0; i--)
-    {
+    for (int i = num_tarefas - 1; i > 0; i--) {
         int j = rand() % (i + 1);
         int temp = indices_embaralhados[i];
         indices_embaralhados[i] = indices_embaralhados[j];
         indices_embaralhados[j] = temp;
     }
 
-    for (int i = 0; i < num_tarefas; i++)
-    {
+    for (int i = 0; i < num_tarefas; i++) {
         int tarefa = indices_embaralhados[i];
         int num_precedencias;
-        int *precedencias = obterPrecedencias(tarefa, &num_precedencias);
-        atribuirTarefa(tarefa, precedencias, num_precedencias, alocada, ordem, &indice_ordem, makespan);
+        int* precedencias = obterPrecedencias(tarefa, &num_precedencias);
+
+        // Verificar se a tarefa está na CRCL
+        if (crclIndex < crclSize) {
+            crcl[crclIndex++] = tarefa;
+        } else {
+            // Verificar se a tarefa tem um makespan menor que alguma tarefa na CRCL
+            int tarefaMakespan = tarefas[tarefa].custo;
+            int maxMakespan = tarefas[crcl[crclSize - 1]].custo;
+            if (tarefaMakespan < maxMakespan) {
+                crcl[crclSize - 1] = tarefa;
+                // Ordenar a CRCL em ordem crescente de makespan
+                for (int j = crclSize - 1; j > 0; j--) {
+                    if (tarefas[crcl[j]].custo < tarefas[crcl[j - 1]].custo) {
+                        int temp = crcl[j];
+                        crcl[j] = crcl[j - 1];
+                        crcl[j - 1] = temp;
+                    }
+                }
+            }
+        }
+
+        atribuirTarefa(tarefa, precedencias, num_precedencias, alocada, ordem, &indiceOrdem, makespan);
         free(precedencias);
     }
 
+    free(crcl);
     return ordem;
 }
+
 
 void imprimirOrdemAtribuicao(const int *ordem, int num_tarefas)
 {
@@ -342,8 +370,12 @@ void imprimirTarefasPorMaquina(const int *ordem, int num_tarefas, int num_maquin
 }
 
 
-void aplicarVizinhanca(int* solucao_atual, int num_tarefas, const Tarefa* tarefas)
-{
+
+
+/*
+
+VERSAO FUNCIONANDO
+void aplicarVizinhanca(int* solucao_atual, int num_tarefas, const Tarefa* tarefas) {
     int posicao1 = rand() % (num_tarefas - 1); // Escolhe a primeira posição aleatória na solução
     int posicao2 = rand() % (num_tarefas - 1); // Escolhe a segunda posição aleatória na solução
 
@@ -390,38 +422,80 @@ void aplicarVizinhanca(int* solucao_atual, int num_tarefas, const Tarefa* tarefa
 }
 
 
+*/
 
-int main()
-{
-    lerInstancias("KILBRID.IN2");
-    // Início da contagem de tempo
-    clock_t start_time = clock();
 
-    int makespan;
-    int *ordem = criarOrdemAtribuicao(tarefas, num_tarefas, &makespan);
+//NAO TESTEI TOTALMENTE AINDA
+void aplicarVizinhanca(int* solucao_atual, int num_tarefas, const Tarefa* tarefas) {
+    int num_trocas = rand() % (num_tarefas / 2) + 1; // Número aleatório de trocas (pelo menos 1 troca)
 
-    // Impressão das soluções iniciais para as máquinas 3, 7 e 11
-    for (int i = 0; i < 3; i++)
-    {
-        int num_maquinas = (i == 0) ? 3 : (i == 1) ? 7 : 11;
-        printf("Solução para máquina %d:\n", num_maquinas);
-        atribuirTarefasPorMaquinas(ordem, num_tarefas, num_maquinas);
-        imprimirTarefasPorMaquina(ordem, num_tarefas, num_maquinas);
-        //printf("FO Inicial: com %d Maquinas:  %d\n", num_maquinas, makespan);
-        printf("\n");
+    for (int i = 0; i < num_trocas; i++) {
+        int posicao1 = rand() % (num_tarefas - 1); // Escolhe a primeira posição aleatória na solução
+        int posicao2 = rand() % (num_tarefas - 1); // Escolhe a segunda posição aleatória na solução
+
+        // Troca de tarefas adjacentes
+        int tarefa1 = solucao_atual[posicao1];
+        int tarefa2 = solucao_atual[posicao1 + 1];
+
+        // Verifica se a troca viola as precedências
+        bool viola_precedencia_adjacente = false;
+        for (int j = 0; j < tarefas[tarefa2].num_predecessores; j++) {
+            int precedencia = tarefas[tarefa2].precedencia[j];
+            if ((precedencia == tarefa1 && posicao1 - 1 >= 0) ||
+                (precedencia == solucao_atual[posicao1 - 1] && posicao1 - 2 >= 0)) {
+                viola_precedencia_adjacente = true;
+                break;
+            }
+        }
+
+        // Troca de tarefas não adjacentes
+        int tarefa3 = solucao_atual[posicao2];
+        int tarefa4 = solucao_atual[posicao2 + 1];
+
+        // Verifica se a troca viola as precedências
+        bool viola_precedencia_nao_adjacente = false;
+        for (int j = 0; j < tarefas[tarefa4].num_predecessores; j++) {
+            int precedencia = tarefas[tarefa4].precedencia[j];
+            if ((precedencia == tarefa3 && posicao2 - 1 >= 0) ||
+                (precedencia == solucao_atual[posicao2 - 1] && posicao2 - 2 >= 0)) {
+                viola_precedencia_nao_adjacente = true;
+                break;
+            }
+        }
+
+        // Verifica se alguma das trocas viola as precedências
+        if (viola_precedencia_adjacente || viola_precedencia_nao_adjacente) {
+            continue; // A troca viola a precedência, portanto, passa para a próxima troca
+        }
+
+        // Realiza a troca de tarefas adjacentes
+        int temp = solucao_atual[posicao1];
+        solucao_atual[posicao1] = solucao_atual[posicao1 + 1];
+        solucao_atual[posicao1 + 1] = temp;
+
+        // Realiza a troca de tarefas não adjacentes
+        temp = solucao_atual[posicao2];
+        solucao_atual[posicao2] = solucao_atual[posicao2 + 1];
+        solucao_atual[posicao2 + 1] = temp;
     }
+}
 
-    // Aplicação da estrutura de vizinhança
-    int *melhor_solucao = ordem;
-    int melhor_makespan = makespan;
+
+void buscarLocalmenteGRASP(int* ordem, int num_tarefas, const Tarefa* tarefas, int num_iteracoes)
+{
+    int* melhor_solucao = malloc(num_tarefas * sizeof(int));
+    memcpy(melhor_solucao, ordem, num_tarefas * sizeof(int));
+    int melhor_makespan = calcularMakespan(melhor_solucao, num_tarefas, MAX_MAQUINAS, tarefas);
+
     int iteracao = 0;
     int num_iteracoes_sem_melhoria = 0;
-    const int MAX_ITERACOES_SEM_MELHORIA = 1000;
+    const int MAX_ITERACOES_GRASP_LOCAL = 1000;
 
-    while (num_iteracoes_sem_melhoria < MAX_ITERACOES_SEM_MELHORIA)
+
+    while (iteracao < num_iteracoes && num_iteracoes_sem_melhoria < MAX_ITERACOES_SEM_MELHORIA)
     {
-        int *vizinho = malloc(num_tarefas * sizeof(int));
-        memcpy(vizinho, melhor_solucao, num_tarefas * sizeof(int));
+        int* vizinho = malloc(num_tarefas * sizeof(int));
+        memcpy(vizinho, ordem, num_tarefas * sizeof(int));
 
         aplicarVizinhanca(vizinho, num_tarefas, tarefas); // Aplica a vizinhança ao vizinho
 
@@ -443,26 +517,102 @@ int main()
         iteracao++;
     }
 
-    // Impressão da melhor solução encontrada para as máquinas 3, 7 e 11
-   
+    // Atualiza a solução atual com a melhor solução encontrada
+    memcpy(ordem, melhor_solucao, num_tarefas * sizeof(int));
+
+    free(melhor_solucao);
+}
+
+
+
+void executarGRASP(const char *arquivo_instancia, int tempo_limite)
+{
+    lerInstancias(arquivo_instancia);
+
+    double duration = 0;
+    clock_t start_time = clock();
+
+    int makespan;
+    int *ordem = criarOrdemAtribuicao(tarefas, num_tarefas, &makespan);
+
+    // Impressão das soluções iniciais para as máquinas 3, 7 e 11
     for (int i = 0; i < 3; i++)
     {
         int num_maquinas = (i == 0) ? 3 : (i == 1) ? 7 : 11;
         printf("Solução para máquina %d:\n", num_maquinas);
-       // atribuirTarefasPorMaquinas(melhor_solucao, num_tarefas, num_maquinas);
-        imprimirTarefasPorMaquina(melhor_solucao, num_tarefas, num_maquinas);
-        int makespan = calcularMakespan(melhor_solucao, num_tarefas, num_maquinas, tarefas);
-        printf("Solução FInal: %d\n", makespan);
+        atribuirTarefasPorMaquinas(ordem, num_tarefas, num_maquinas);
+        imprimirTarefasPorMaquina(ordem, num_tarefas, num_maquinas);
         printf("\n");
     }
 
-    // Cálculo do tempo de execução em segundos
-    clock_t end_time = clock();
-    double execution_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
-    printf("Tempo de execução: %.6f segundos\n", execution_time);
+    // Aplicação do método GRASP
+    int *melhor_solucao = ordem;
+    int melhor_makespan = makespan;
+    int iteracao = 0;
+    int num_iteracoes_sem_melhoria = 0;
+
+    while (duration < tempo_limite)
+    {
+        int *vizinho = malloc(num_tarefas * sizeof(int));
+        memcpy(vizinho, melhor_solucao, num_tarefas * sizeof(int));
+
+        aplicarVizinhanca(vizinho, num_tarefas, tarefas); // Aplica a vizinhança ao vizinho
+
+        int vizinho_makespan = calcularMakespan(vizinho, num_tarefas, MAX_MAQUINAS, tarefas); // Calcula o makespan do vizinho
+
+        if (vizinho_makespan < melhor_makespan)
+        {
+            free(melhor_solucao);
+            melhor_solucao = vizinho;
+            melhor_makespan = vizinho_makespan;
+            num_iteracoes_sem_melhoria = 0;
+        }
+        else
+        {
+            free(vizinho);
+            num_iteracoes_sem_melhoria++;
+        }
+
+        // Cálculo do tempo decorrido
+        clock_t current_time = clock();
+        duration = (double)(current_time - start_time) / CLOCKS_PER_SEC;
+
+        buscarLocalmenteGRASP(melhor_solucao, num_tarefas, tarefas, melhor_makespan); // Chamada da busca local
+    }
+
+    printf("Melhor solução encontrada para o arquivo %s:\n", arquivo_instancia);
+    for (int i = 0; i < 3; i++)
+    {
+        int num_maquinas = (i == 0) ? 3 : (i == 1) ? 7 : 11;
+        printf("Solução para máquina %d:\n", num_maquinas);
+        imprimirTarefasPorMaquina(melhor_solucao, num_tarefas, num_maquinas);
+        int makespan = calcularMakespan(melhor_solucao, num_tarefas, num_maquinas, tarefas);
+        printf("Solução Final: %d\n", makespan);
+        printf("\n");
+    }
 
     imprimirPrecedenciasDiretasEIndiretas(tarefas, num_tarefas);
     free(melhor_solucao);
+}
+
+int main()
+{
+    const char *arquivos_instancias[] = {"KILBRID.IN2", "KILBRID.IN2", "KILBRID.IN2", "KILBRID.IN2", "KILBRID.IN2"};
+    const int num_instancias = sizeof(arquivos_instancias) / sizeof(arquivos_instancias[0]);
+    const int num_execucoes = 5;
+    const int tempo_limite = 30; // 2 minutos em segundos
+
+    for (int instancia = 0; instancia < num_instancias; instancia++)
+    {
+        const char *arquivo_instancia = arquivos_instancias[instancia];
+
+        for (int execucao = 0; execucao < num_execucoes; execucao++)
+        {
+            printf("Execução %d da instância %s:\n", execucao + 1, arquivo_instancia);
+            executarGRASP(arquivo_instancia, tempo_limite);
+            printf("\n");
+        }
+    }
 
     return 0;
-}   
+}
