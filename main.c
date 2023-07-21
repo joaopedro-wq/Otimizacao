@@ -133,7 +133,6 @@
         return true;
     }
 
-   // Atualização da função atribuirTarefa
 void atribuirTarefa(int tarefa, const int *precedencias, int num_precedencias, bool *alocada, int *ordem, int *indice_ordem, int *makespan, double alpha) {
     if (alocada[tarefa]) {
         return;
@@ -159,7 +158,6 @@ void atribuirTarefa(int tarefa, const int *precedencias, int num_precedencias, b
     }
 }
 
-// Atualização da função criarOrdemAtribuicao
 int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan, double alpha) {
     bool alocada[MAX_TAREFAS] = {false};
     int *ordem = (int *)malloc(num_tarefas * sizeof(int));
@@ -194,8 +192,33 @@ int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan,
     return ordem;
 }
 
+void imprimirMelhorSolucaoEmArquivo(const char *nome_arquivo, int **melhor_tarefas_por_maquina_matriz, int num_tarefas, int num_maquinas, int makespan_total, double tempo_para_melhor_solucao)
+{
+    FILE *file = fopen(nome_arquivo, "w");
+    if (file == NULL)
+    {
+        printf("Erro ao criar o arquivo de saída.\n");
+        exit(1);
+    }
 
-    void imprimirOrdemAtribuicao(const int *ordem, int num_tarefas)
+    // Escrever os dados da melhor solução no arquivo
+    fprintf(file, "Melhor Solução com %d máquinas:\n", num_maquinas);
+    for (int i = 0; i < num_maquinas; i++)
+    {
+        fprintf(file, "Máquina %d:", i + 1);
+        int num_tarefas_maquina = num_tarefas / num_maquinas + (i < num_tarefas % num_maquinas ? 1 : 0);
+        for (int j = 0; j < num_tarefas_maquina; j++)
+        {
+            fprintf(file, " %d", melhor_tarefas_por_maquina_matriz[i][j] + 1);
+        }
+        fprintf(file, "\n");
+    }
+    fprintf(file, "Makespan total da Melhor Solução: %d\n", makespan_total);
+    fprintf(file, "Tempo para atingir a Melhor Solução: %.2f segundos\n", tempo_para_melhor_solucao);
+
+    fclose(file);
+}
+void imprimirOrdemAtribuicao(const int *ordem, int num_tarefas)
     {
         printf("Ordem de atribuição das tarefas:\n");
         for (int i = 0; i < num_tarefas; i++)
@@ -205,7 +228,7 @@ int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan,
         printf("\n");
     }
 
-    void removerTarefa(int *ordem, int indice, int *num_tarefas)
+void removerTarefa(int *ordem, int indice, int *num_tarefas)
     {
         for (int i = indice; i < (*num_tarefas) - 1; i++)
         {
@@ -214,7 +237,7 @@ int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan,
         (*num_tarefas)--;
     }
 
-    int **atribuirTarefasPorMaquinas(const int *ordem, int num_tarefas, int num_maquinas)
+int **atribuirTarefasPorMaquinas(const int *ordem, int num_tarefas, int num_maquinas)
     {
         // Aloca a matriz para armazenar os índices das tarefas por máquina
         int **tarefas_por_maquina_matriz = (int **)malloc(num_maquinas * sizeof(int *));
@@ -244,9 +267,7 @@ int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan,
         return tarefas_por_maquina_matriz;
     }
 
-
-
-    void imprimirTarefasPorMaquina(int **tarefas_por_maquina_matriz, int num_tarefas, int num_maquinas)
+void imprimirTarefasPorMaquina(int **tarefas_por_maquina_matriz, int num_tarefas, int num_maquinas)
     {
         printf("Tarefas alocadas por máquina:\n");
         for (int i = 0; i < num_maquinas; i++)
@@ -261,7 +282,7 @@ int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan,
         }
     }
 
-    int calcularMakespan(int **tarefas_por_maquina_matriz, int num_tarefas, int num_maquinas)
+int calcularMakespan(int **tarefas_por_maquina_matriz, int num_tarefas, int num_maquinas)
     {
         int makespan_total = 0;
 
@@ -312,7 +333,6 @@ bool trocaValida(int tarefa1, int tarefa2, int maquina1, int maquina2, int **tar
     return true;
 }
 
-
 bool verificarPrecedencias(int **tarefas_por_maquina_matriz, int num_tarefas, int num_maquinas) {
     for (int i = 0; i < num_tarefas; i++) {
         for (int j = 0; j < tarefas[i].num_predecessores; j++) {
@@ -357,11 +377,8 @@ bool verificarPrecedencias(int **tarefas_por_maquina_matriz, int num_tarefas, in
     return true;
 }
 
-
-
-
 bool vizinhancaTrocaTarefas(int **tarefas_por_maquina_matriz, int num_tarefas, int num_maquinas, int *makespan, int tamanho_vizinhanca, int *precedencias) {
-    bool melhoria_encontrada = false;
+bool melhoria_encontrada = false;
 
     // Percorre todas as máquinas e tarefas para encontrar uma troca válida
     for (int maquina1 = 0; maquina1 < num_maquinas; maquina1++) {
@@ -405,47 +422,37 @@ bool vizinhancaTrocaTarefas(int **tarefas_por_maquina_matriz, int num_tarefas, i
     return melhoria_encontrada;
 }
 
-int main()
+void executarGRASP(int num_maquinas, int tempo_limite_segundos)
 {
-   
-    lerInstancias("KILBRID.IN2");
-
-    time_t start_time = time(NULL);
-    
-    int melhor_makespan_total = INT_MAX;
-   
-    time_t tempo_melhor_solucao = 0;
-   
-    float tempo_busca_local = 0;
-   
-    imprimirPrecedenciasDiretasEIndiretas(tarefas, num_tarefas);
-
-    int num_maquinas = 3;
-
-    double melhorTempo = 0;
-
-    // Número de execuções do GRASP
     int num_execucoes = 0;
     int **precedencias = (int **)malloc(num_tarefas * sizeof(int *));
     int **melhor_tarefas_por_maquina_matriz = NULL;
+    int melhor_makespan_total = INT_MAX;
+    time_t tempo_melhor_solucao = 0;
+    float tempo_busca_local = 0;
+    double melhorTempo = 0;
+
+    
     for (int i = 0; i < num_tarefas; i++)
     {
         int num_precedencias;
         precedencias[i] = obterPrecedencias(i, &num_precedencias);
     }
     
-    int tempo_limite_segundos = 120;
+    time_t start_time = time(NULL);
+     clock_t start = clock();
 
-     while (difftime(time(NULL), start_time) < tempo_limite_segundos)
+    while (difftime(time(NULL), start_time) < tempo_limite_segundos)
     {
+    
         clock_t start_time_iteracao = clock();
         num_execucoes++;
         printf("\nExecutando GRASP - Execução %d\n", num_execucoes);
 
-        double alpha = 0.9 / num_execucoes;
+        double alpha = 1.0 / num_execucoes;
         // Criar ordem inicial de atribuição usando construção gulosa com aleatoriedade (alpha = 0.9)
         int makespan;
-        int *ordem = criarOrdemAtribuicao(tarefas, num_tarefas, &makespan, 0.9);
+        int *ordem = criarOrdemAtribuicao(tarefas, num_tarefas, &makespan, 1.0);
 
        
         imprimirOrdemAtribuicao(ordem, num_tarefas);
@@ -458,15 +465,15 @@ int main()
         printf("Makespan Inicial: %d\n", makespan_total);
         
         // Combinação de alfa para maior 
-        int tamanho_vizinhanca = num_tarefas * 0.2;
-        for (int iteracao = 1; iteracao <= 10; iteracao++){
+        int tamanho_vizinhanca = num_tarefas * 0.8;
+        for (int iteracao = 1; iteracao <= 5; iteracao++){
 
             clock_t start_time_busca_local = clock();
             printf("\nExecutando Vizinhança - Iteração %d\n", iteracao);
             bool melhoria_encontrada = vizinhancaTrocaTarefas(tarefas_por_maquina_matriz, num_tarefas, num_maquinas, &makespan_total, tamanho_vizinhanca, precedencias);
 
             
-            if (melhoria_encontrada){
+           if (melhoria_encontrada){
                 
             printf("Melhoria encontrada na Iteração  %d - Novo Makespan: %d\n", iteracao, calcularMakespan(tarefas_por_maquina_matriz, num_tarefas, num_maquinas));
             clock_t end_time_busca_local = clock();
@@ -478,7 +485,7 @@ int main()
             {
                 printf("Nenhuma melhoria encontrada na Iteração %d\n", iteracao);
               
-                // Encerra o laço da busca local se nenhuma melhoria for encontrada
+                break;// Encerra o laço da busca local se nenhuma melhoria for encontrada
             }
         }
 
@@ -487,7 +494,6 @@ int main()
     {
         melhor_makespan_total = makespan_total;
         tempo_melhor_solucao = time(NULL);
-        
         if (melhor_tarefas_por_maquina_matriz != NULL)
         {
             for (int i = 0; i < num_maquinas; i++)
@@ -497,7 +503,6 @@ int main()
             free(melhor_tarefas_por_maquina_matriz);
         }
 
-       
         melhor_tarefas_por_maquina_matriz = (int **)malloc(num_maquinas * sizeof(int *));
         for (int i = 0; i < num_maquinas; i++)
         {
@@ -515,21 +520,50 @@ int main()
         }
         free(tarefas_por_maquina_matriz);
         free(ordem);
+    
     }
 
-    
     printf("\nMelhor Solução:\n");
     imprimirTarefasPorMaquina(melhor_tarefas_por_maquina_matriz, num_tarefas, num_maquinas);
     printf("Makespan total da Melhor Solução: %d\n", melhor_makespan_total);
+  
     double tempo_para_melhor_solucao = difftime(tempo_melhor_solucao, start_time);
     printf("Tempo para atingir a Melhor Solução: %.2f segundos\n", tempo_para_melhor_solucao);
-        
+    char nome_arquivo[50];
+    snprintf(nome_arquivo, sizeof(nome_arquivo), "melhor_solucao_maquinas_%d.txt", num_maquinas);
+    imprimirMelhorSolucaoEmArquivo(nome_arquivo, melhor_tarefas_por_maquina_matriz, num_tarefas, num_maquinas, melhor_makespan_total, tempo_para_melhor_solucao);
+
+    // Liberar memória alocada
     for (int i = 0; i < num_maquinas; i++)
     {
         free(melhor_tarefas_por_maquina_matriz[i]);
     }
     free(melhor_tarefas_por_maquina_matriz);
 
+    for (int i = 0; i < num_tarefas; i++)
+    {
+        free(precedencias[i]);
+    }
+    free(precedencias);
+}
+
+int main()
+{
+    lerInstancias("KILBRID.IN2");
+
+    // Definir os diferentes números de máquinas
+    int num_maquinas[] = {3, 7, 11};
+    int num_maquinas_count = sizeof(num_maquinas) / sizeof(num_maquinas[0]);
+
+    int tempo_limite_segundos = 20;
+
+    for (int i = 0; i < num_maquinas_count; i++)
+    {
+        printf("\nExecutando GRASP com %d máquinas:\n", num_maquinas[i]);
+
+        // Chamar a função executarGRASP com o número de máquinas atual
+        executarGRASP(num_maquinas[i], tempo_limite_segundos);
+    }
 
     return 0;
 }
