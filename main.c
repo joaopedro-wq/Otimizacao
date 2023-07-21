@@ -133,40 +133,34 @@
         return true;
     }
 
-    void atribuirTarefa(int tarefa, const int *precedencias, int num_precedencias, bool *alocada, int *ordem, int *indice_ordem, int *makespan)
-    {
-        if (alocada[tarefa])
-        {
-            return;
-        }
-
-        if (!todasPrecedenciasAlocadas(tarefa, precedencias, num_precedencias, alocada))
-        {
-            return;
-        }
-
-        alocada[tarefa] = true;
-        ordem[(*indice_ordem)++] = tarefa;
-
-        // Atualizar makespan da máquina correspondente
-        int maquina = (*indice_ordem - 1) % MAX_MAQUINAS;
-        *makespan += tarefas[tarefa].custo;
-
-        for (int i = 0; i < num_tarefas; i++)
-        {
-            if (tarefas[i].num_predecessores > 0)
-            {
-                int *precedencias_indiretas = obterPrecedencias(i, &num_precedencias);
-                atribuirTarefa(i, precedencias_indiretas, num_precedencias, alocada, ordem, indice_ordem, makespan);
-                free(precedencias_indiretas);
-            }
-        }
+   // Atualização da função atribuirTarefa
+void atribuirTarefa(int tarefa, const int *precedencias, int num_precedencias, bool *alocada, int *ordem, int *indice_ordem, int *makespan, double alpha) {
+    if (alocada[tarefa]) {
+        return;
     }
 
+    if (!todasPrecedenciasAlocadas(tarefa, precedencias, num_precedencias, alocada)) {
+        return;
+    }
 
+    alocada[tarefa] = true;
+    ordem[(*indice_ordem)++] = tarefa;
 
-   int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan, double alpha)
-{
+    // Atualizar makespan da máquina correspondente usando o valor alpha
+    int maquina = (*indice_ordem - 1) % MAX_MAQUINAS;
+    *makespan += tarefas[tarefa].custo * alpha;
+
+    for (int i = 0; i < num_tarefas; i++) {
+        if (tarefas[i].num_predecessores > 0) {
+            int *precedencias_indiretas = obterPrecedencias(i, &num_precedencias);
+            atribuirTarefa(i, precedencias_indiretas, num_precedencias, alocada, ordem, indice_ordem, makespan, alpha);
+            free(precedencias_indiretas);
+        }
+    }
+}
+
+// Atualização da função criarOrdemAtribuicao
+int *criarOrdemAtribuicao(const Tarefa *tarefas, int num_tarefas, int *makespan, double alpha) {
     bool alocada[MAX_TAREFAS] = {false};
     int *ordem = (int *)malloc(num_tarefas * sizeof(int));
     int indice_ordem = 0;
@@ -174,13 +168,11 @@
 
     // Embaralhar os índices das tarefas
     int indices_embaralhados[MAX_TAREFAS];
-    for (int i = 0; i < num_tarefas; i++)
-    {
+    for (int i = 0; i < num_tarefas; i++) {
         indices_embaralhados[i] = i;
     }
     srand(time(NULL));
-    for (int i = num_tarefas - 1; i > 0; i--)
-    {
+    for (int i = num_tarefas - 1; i > 0; i--) {
         int j = rand() % (i + 1);
         int temp = indices_embaralhados[i];
         indices_embaralhados[i] = indices_embaralhados[j];
@@ -188,16 +180,13 @@
     }
 
     // Atribuir as tarefas às máquinas usando a função atribuirTarefa com alpha
-    for (int i = 0; i < num_tarefas; i++)
-    {
+    for (int i = 0; i < num_tarefas; i++) {
         int tarefa = indices_embaralhados[i];
         int num_precedencias;
         int *precedencias = obterPrecedencias(tarefa, &num_precedencias);
 
-        // Chamar a função atribuirTarefa com os argumentos corretos
-          atribuirTarefa(tarefa, precedencias, num_precedencias, alocada, ordem, &indice_ordem, makespan);
-
-        
+        // Chamar a função atribuirTarefa com os argumentos corretos, incluindo alpha
+        atribuirTarefa(tarefa, precedencias, num_precedencias, alocada, ordem, &indice_ordem, makespan, alpha);
 
         free(precedencias);
     }
@@ -255,57 +244,6 @@
         return tarefas_por_maquina_matriz;
     }
 
-int escolherProximaTarefa(int maquina, bool *alocada, int num_tarefas, const Tarefa *tarefas, double alpha)
-{
-    int *candidatos = (int *)malloc(num_tarefas * sizeof(int));
-    int num_candidatos = 0;
-
-    // Construir a lista de candidatos que ainda não foram alocados à máquina
-    for (int i = 0; i < num_tarefas; i++)
-    {
-        if (!alocada[i])
-        {
-            candidatos[num_candidatos] = i;
-            num_candidatos++;
-        }
-    }
-
-    // Verificar se a lista de candidatos está vazia
-    if (num_candidatos == 0)
-    {
-        free(candidatos);
-        return -1; // Retorna -1 para indicar que não há mais tarefas disponíveis
-    }
-
-    // Gerar um número aleatório entre 0 e 1
-    double random_value = (double)rand() / RAND_MAX;
-
-    // Escolher a próxima tarefa com base no valor de alpha
-    int proxima_tarefa;
-    if (random_value <= alpha)
-    {
-        // Escolha aleatória entre as tarefas candidatas
-        int indice_aleatorio = rand() % num_candidatos;
-        proxima_tarefa = candidatos[indice_aleatorio];
-    }
-    else
-    {
-        
-        int menor_custo = INT_MAX;
-        for (int i = 0; i < num_candidatos; i++)
-        {
-            int tarefa = candidatos[i];
-            if (tarefas[tarefa].custo < menor_custo)
-            {
-                menor_custo = tarefas[tarefa].custo;
-                proxima_tarefa = tarefa;
-            }
-        }
-    }
-
-    free(candidatos);
-    return proxima_tarefa;
-}
 
 
     void imprimirTarefasPorMaquina(int **tarefas_por_maquina_matriz, int num_tarefas, int num_maquinas)
@@ -435,32 +373,23 @@ bool vizinhancaTrocaTarefas(int **tarefas_por_maquina_matriz, int num_tarefas, i
             for (int maquina2 = 0; maquina2 < num_maquinas; maquina2++) {
                 if (maquina1 != maquina2) {
                     int num_tarefas_maquina2 = num_tarefas / num_maquinas + (maquina2 < num_tarefas % num_maquinas ? 1 : 0);
-
                     for (int j = 0; j < num_tarefas_maquina2; j++) {
                         int tarefa2 = tarefas_por_maquina_matriz[maquina2][j];
-
                         // Verifica se a troca é válida (respeita precedências e não repete tarefas)
                         if (trocaValida(tarefa1, tarefa2, maquina1, maquina2, tarefas_por_maquina_matriz, num_tarefas, num_maquinas, precedencias)) {
                             // Realiza a troca de tarefas
                             int temp = tarefas_por_maquina_matriz[maquina1][i];
                             tarefas_por_maquina_matriz[maquina1][i] = tarefas_por_maquina_matriz[maquina2][j];
                             tarefas_por_maquina_matriz[maquina2][j] = temp;
-
                             // Recalcula o makespan após as trocas
                             int novo_makespan = calcularMakespan(tarefas_por_maquina_matriz, num_tarefas, num_maquinas);
-
                             // Verifica se a troca respeitou as precedências
                             bool precedencias_respeitadas = verificarPrecedencias(tarefas_por_maquina_matriz, num_tarefas, num_maquinas);
-
-                            
-                            
-
                             if (novo_makespan < *makespan && precedencias_respeitadas) {
                                 *makespan = novo_makespan;
                                 melhoria_encontrada = true;
                                 printf("Novo makespan após a troca: %d\n", novo_makespan);
-                            
-                            } else {
+                               } else {
                                 // Desfaz a troca se não houve melhoria ou as precedências não foram respeitadas
                                 temp = tarefas_por_maquina_matriz[maquina1][i];
                                 tarefas_por_maquina_matriz[maquina1][i] = tarefas_por_maquina_matriz[maquina2][j];
@@ -491,7 +420,7 @@ int main()
    
     imprimirPrecedenciasDiretasEIndiretas(tarefas, num_tarefas);
 
-    int num_maquinas = 11;
+    int num_maquinas = 3;
 
     double melhorTempo = 0;
 
