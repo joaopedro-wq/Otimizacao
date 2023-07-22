@@ -452,7 +452,7 @@ void executarGRASP(int num_maquinas, int tempo_limite_segundos)
         double alpha = 1.0 / num_execucoes;
         // Criar ordem inicial de atribuição usando construção gulosa com aleatoriedade (alpha = 0.9)
         int makespan;
-        int *ordem = criarOrdemAtribuicao(tarefas, num_tarefas, &makespan, 1.0);
+        int *ordem = criarOrdemAtribuicao(tarefas, num_tarefas, &makespan, alpha);
 
        
         imprimirOrdemAtribuicao(ordem, num_tarefas);
@@ -541,7 +541,7 @@ void executarGRASP(int num_maquinas, int tempo_limite_segundos)
     free(melhor_tarefas_por_maquina_matriz);
 
     for (int i = 0; i < num_tarefas; i++)
-    {
+    {       
         free(precedencias[i]);
     }
     free(precedencias);
@@ -555,7 +555,7 @@ int main()
     int num_maquinas[] = {3, 7, 11};
     int num_maquinas_count = sizeof(num_maquinas) / sizeof(num_maquinas[0]);
 
-    int tempo_limite_segundos = 20;
+    int tempo_limite_segundos = 1500;
 
     for (int i = 0; i < num_maquinas_count; i++)
     {
